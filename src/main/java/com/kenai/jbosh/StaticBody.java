@@ -42,7 +42,7 @@ final class StaticBody extends AbstractBody {
      * Selected parser to be used to process raw XML messages.
      */
     private static final BodyParser PARSER =
-            ServiceLib.loadService(BodyParser.class);
+            new BodyParserXmlPull();
 
     /**
      * Size of the internal buffer when copying from a stream.
