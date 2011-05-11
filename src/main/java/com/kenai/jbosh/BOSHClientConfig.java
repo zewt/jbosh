@@ -17,6 +17,7 @@
 package com.kenai.jbosh;
 
 import java.net.URI;
+import javax.net.SocketFactory;
 import javax.net.ssl.SSLContext;
 
 /**
@@ -70,6 +71,11 @@ public final class BOSHClientConfig {
     private final SSLContext sslContext;
 
     /**
+     * Supplied SocketFactory for creating sockets.
+     */
+    private final SocketFactory socketFactory;
+
+    /**
      * Flag indicating that compression should be attempted, if possible.
      */
     private final boolean compressionEnabled;
@@ -97,6 +103,7 @@ public final class BOSHClientConfig {
         private String bProxyHost;
         private int bProxyPort;
         private SSLContext bSSLContext;
+        private SocketFactory bSocketFactory;
         private Boolean bCompression;
 
         /**
@@ -151,6 +158,7 @@ public final class BOSHClientConfig {
             result.bProxyHost = cfg.getProxyHost();
             result.bProxyPort = cfg.getProxyPort();
             result.bSSLContext = cfg.getSSLContext();
+            result.bSocketFactory = cfg.getSocketFactory();
             result.bCompression = cfg.isCompressionEnabled();
             return result;
         }
@@ -259,7 +267,27 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "SSL context cannot be null"));
             }
+            if (bSocketFactory != null) {
+                throw(new IllegalArgumentException("SocketFactory and SSLContext can not both be set"));
+            }
             bSSLContext = ctx;
+            return this;
+        }
+
+        /**
+         * Set the {@link SocketFactory} for this session.
+         * @param factory SSL socket factory
+         * @return builder instance
+         */
+        public Builder setSocketFactory(final SocketFactory factory) {
+            if (factory == null) {
+                throw(new IllegalArgumentException("SocketFactory cannot be null"));
+            }
+            if (bSSLContext != null) {
+                throw(new IllegalArgumentException("SocketFactory and SSLContext can not both be set"));
+            }
+
+            bSocketFactory = factory;
             return this;
         }
 
@@ -315,6 +343,7 @@ public final class BOSHClientConfig {
                     bProxyHost,
                     port,
                     bSSLContext,
+                    bSocketFactory,
                     compression);
         }
 
@@ -334,6 +363,7 @@ public final class BOSHClientConfig {
      * @param cProxyHost proxy host
      * @param cProxyPort proxy port
      * @param cSSLContext SSL context
+     * @param cSocketFactory SSL socket factory
      * @param cCompression compression enabled flag
      */
     private BOSHClientConfig(
@@ -345,6 +375,7 @@ public final class BOSHClientConfig {
             final String cProxyHost,
             final int cProxyPort,
             final SSLContext cSSLContext,
+            final SocketFactory cSocketFactory,
             final boolean cCompression) {
         uri = cURI;
         to = cDomain;
@@ -354,6 +385,7 @@ public final class BOSHClientConfig {
         proxyHost = cProxyHost;
         proxyPort = cProxyPort;
         sslContext = cSSLContext;
+        socketFactory = cSocketFactory;
         compressionEnabled = cCompression;
     }
 
@@ -430,6 +462,16 @@ public final class BOSHClientConfig {
      */
     public SSLContext getSSLContext() {
         return sslContext;
+    }
+
+    /**
+     * Get the {@link SocketFactory} to use for this session.
+     *
+     * @return {@link SocketFactory} to use, or {@code null} if none
+     *  was provided.
+     */
+    public SocketFactory getSocketFactory() {
+        return socketFactory;
     }
 
     /**
