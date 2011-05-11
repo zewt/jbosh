@@ -231,8 +231,7 @@ public final class BOSHClient {
     /**
      * HTTPSender instance.
      */
-    private final HTTPSender httpSender =
-            ServiceLib.loadService(HTTPSender.class);
+    private final HTTPSender httpSender = new HTTPSenderInternal();
 
     /**
      * Storage for test hook implementation.
