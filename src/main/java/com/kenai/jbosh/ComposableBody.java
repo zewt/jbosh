@@ -58,7 +58,7 @@ public final class ComposableBody extends AbstractBody {
      * BOSH message.
      */
     private static final Pattern BOSH_START =
-            Pattern.compile("<" + "(?:(?:[^:\t\n\r >]+:)|(?:\\{[^\\}>]*?}))?"
+            Pattern.compile("<" + "(?:(?:[^:\t\n\r >]+:)|(?:\\{[^\\}>]*?\\}))?"
             + "body" + "(?:[\t\n\r ][^>]*?)?" + "(/>|>)");
 
     /**
