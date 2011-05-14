@@ -137,6 +137,7 @@ public class XEP0124Section19Test extends AbstractBOSHTest {
             if (!observed.add(Long.valueOf(rid))) {
                 repeats++;
             }
+            sess.close();
         }
         LOG.info("Repeated initial RID " + repeats + " time(s)");
         if (repeats >= 2) {
