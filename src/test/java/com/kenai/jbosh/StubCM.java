@@ -83,6 +83,7 @@ public class StubCM {
 
     public StubCM() throws Exception {
         server = new HttpServer(probeForPort(), new ReqHandler());
+        server.setAutoUncompress(false);
         server.start();
         port = server.getLocalPort();
     }
