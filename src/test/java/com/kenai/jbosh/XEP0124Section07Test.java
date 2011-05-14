@@ -265,6 +265,9 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
                 .build();
         conn.sendResponse(scr);
 
+        // Wait until the connection is active and configured.
+        session.drain();
+
         // Now attempt to send something
         session.send(ComposableBody.builder()
                 .setNamespaceDefinition("foo", "http://bar/")
@@ -304,6 +307,9 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
                 .build();
         conn.sendResponse(scr);
 
+        // Wait until the connection is active and configured.
+        session.drain();
+
         // Now attempt to send something
         session.send(ComposableBody.builder()
                 .setNamespaceDefinition("foo", "http://bar/")
@@ -341,6 +347,9 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
                 .setAttribute(Attributes.WAIT, "1")
                 .build();
         conn.sendResponse(scr);
+
+        // Wait until the connection is active and configured.
+        session.drain();
 
         // Now attempt to send something
         session.send(ComposableBody.builder()
