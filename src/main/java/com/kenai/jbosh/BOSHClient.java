@@ -261,6 +261,13 @@ public final class BOSHClient {
     private Thread procThread;
 
     /**
+     * If dispose() was called from within the thread, stash procThread to
+     * join it when the user explicitly closes the client.  If this is set,
+     * procThread is always null.
+     */
+    private Thread procThreadUnjoined = null;
+
+    /**
      * Future for sending a deferred empty request, if needed.
      */
     private ScheduledFuture emptyRequestFuture;
@@ -681,10 +688,35 @@ public final class BOSHClient {
         assertUnlocked();
         
         lock.lock();
+
+        if (procThreadUnjoined != null) {
+            // dispose() has already been called from the procThread, which destroyed
+            // everything but the thread itself.  Join the thread, and don't rerun
+            // the rest, which has already been done.
+            Thread thread = procThreadUnjoined;
+            procThreadUnjoined = null;
+
+            // We must unlock before joining.
+            lock.unlock();
+
+            Helpers.joinThreadUninterruptible(thread);
+            return;
+        }
+
+        Thread thread = null;
         try {
             if (procThread == null) {
                 // Already disposed
                 return;
+            }
+
+            // If we're running from the thread, we can't join.  Stash the thread
+            // in procThreadUnjoined, so when the user calls close() the thread is
+            // guaranteed to be joined.
+            if(procThread == Thread.currentThread()) {
+                procThreadUnjoined = procThread;
+            } else {
+                thread = procThread;
             }
             procThread = null;
         } finally {
@@ -709,6 +741,10 @@ public final class BOSHClient {
             drained.signalAll();
         } finally {
             lock.unlock();
+        }
+
+        if(thread != null) {
+            Helpers.joinThreadUninterruptible(thread);
         }
         
         httpSender.destroy();
