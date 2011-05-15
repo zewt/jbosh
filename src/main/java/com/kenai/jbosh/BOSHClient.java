@@ -195,7 +195,7 @@ public final class BOSHClient {
     private final Condition notFull = lock.newCondition();
 
     /**
-     * Condition indicating that there are no outstanding connections.
+     * Condition indicating that one or more exchanges was removed from exchanges.
      */
     private final Condition drained = lock.newCondition();
 
@@ -623,15 +623,13 @@ public final class BOSHClient {
     }
 
     /**
-     * Wait until no more messages are waiting to be processed.
+     * Wait until no exchanges are waiting to be sent.  This is used during testing.
      */
     void drain() {
         lock.lock();
         try {
             LOG.finest("Waiting while draining...");
-            while (isWorking()
-                    && (emptyRequestFuture == null
-                    || emptyRequestFuture.isDone())) {
+            while (isWorking() && !exchanges.isEmpty()) {
                 try {
                     drained.await();
                 } catch (InterruptedException intx) {
@@ -1000,6 +998,7 @@ public final class BOSHClient {
                         lock.lock();
                         try {
                             exchanges.remove(exch);
+                            drained.signalAll();
                         } finally {
                             lock.unlock();
                         }
@@ -1145,6 +1144,7 @@ public final class BOSHClient {
             if (lock.isHeldByCurrentThread()) {
                 try {
                     exchanges.remove(exch);
+                    drained.signalAll();
                     if (exchanges.isEmpty()) {
                         scheduleEmptyRequest(processPauseRequest(req));
                     }
@@ -1223,7 +1223,6 @@ public final class BOSHClient {
         } catch (RejectedExecutionException rex) {
             LOG.log(Level.FINEST, "Could not schedule empty request", rex);
         }
-        drained.signalAll();
     }
 
     /**
