@@ -269,7 +269,11 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         testedBy(RequestValidator.class, "assertRequestIDSequential");
         AbstractBody scr = null;
         for (int i=0; i<5; i++) {
-            session.send(ComposableBody.builder().build());
+            // Send a non-empty request, so polling interval rules aren't
+            // applied to this test.
+            session.send(ComposableBody.builder()
+                    .setNamespaceDefinition("foo", "namespace").setPayloadXML("<foo:bar/>")
+                    .build());
             StubConnection conn = cm.awaitConnection();
             AbstractBody req = conn.getRequest().getBody();
             if (i == 0) {
