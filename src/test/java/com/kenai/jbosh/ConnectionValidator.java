@@ -404,9 +404,9 @@ public final class ConnectionValidator implements StubCMListener {
         String idStr = req.getAttribute(Attributes.RID);
         long prevID = Long.parseLong(prevIDStr);
         long id = Long.parseLong(idStr);
-        if (!(prevReq.getPayloadXML().isEmpty()
-                && req.getPayloadXML().isEmpty())
-                && (id - prevID != 1)) {
+        if (!prevReq.getPayloadXML().isEmpty()
+                || !req.getPayloadXML().isEmpty()
+                || id != prevID + 1) {
             // Not two consecutive empty requests
             return;
         }
