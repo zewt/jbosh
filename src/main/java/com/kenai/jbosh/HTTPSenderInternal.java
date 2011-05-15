@@ -177,9 +177,7 @@ final class HTTPSenderInternal implements HTTPSender {
 
     /**
      * Determine the maximum number of connections to make to the server simultaneously.
-     *
-     * @param params
-     * @return
+     * If -1, no connection limit is enforced.
      */
     int getMaxConnections(CMSessionParams params) {
         // If we havn't yet determined keepalive support, only make one connection.
@@ -192,21 +190,9 @@ final class HTTPSenderInternal implements HTTPSender {
         if(supportsKeepAlive)
             return 1;
 
-        // Keepalive support isn't available, so we'll need to make multiple connections.
-        // We should have params by now, because it's filled in on the first response, but
-        // if it's not, assume two connections.
-        if(params == null)
-            return 2;
-
-        // If the server has told us how many parallel connections we can make, use that value.
-        AttrRequests requests = params.getRequests();
-        if(requests != null)
-            return requests.getValue();
-
-        // If the server hasn't told us how many requests to make, assume a default of 4.  This
-        // allows us to make a holding connection, and to also send small bursts of packets without
-        // waiting for a response from each one before sending the next.
-        return 4;
+        // Otherwise, the maximum number of requests is limited only by the 'requests'
+        // session parameter, which is handled by BOSHClient.  Place no limit here.
+        return -1;
     }
 
     final class InternalHTTPResponse implements HTTPResponse, InternalHTTPRequestBase {
@@ -288,7 +274,7 @@ final class HTTPSenderInternal implements HTTPSender {
 
                 // If we already have too many connections, don't start another.
                 int maxConnections = getMaxConnections(params);
-                if(connections.size() == maxConnections) {
+                if(maxConnections != -1 && connections.size() >= maxConnections) {
                     // We already have too many connections, so queue the request.
                     // LOG.log(Level.WARNING, "Queueing packet");
                     requestQueue.add(this);
