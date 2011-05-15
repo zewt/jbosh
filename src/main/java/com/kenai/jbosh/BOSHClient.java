@@ -1093,6 +1093,13 @@ public final class BOSHClient {
 
                 // The following call handles the lock. It's not an escape.
                 fireConnectionEstablished();
+
+                // fireConnectionEstablished temporarily released the lock.  We might
+                // have been disposed while that happened.
+                if (!isWorking()) {
+                    lock.unlock();
+                    return;
+                }
             }
             params = cmParams;
 
