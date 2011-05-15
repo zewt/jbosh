@@ -120,6 +120,8 @@ public abstract class AbstractBOSHTest {
      * Given a session creation request, return the default session creation response.
      */
     ComposableBody.Builder getSessionCreationResponse(AbstractBody creationRequest) {
+        // Set polling to a very large value, to prevent empty requests from being
+        // sent nondeterministically during tests.
         String waitStr = creationRequest.getAttribute(Attributes.WAIT);
         String verStr = creationRequest.getAttribute(Attributes.VER);
         String holdStr = creationRequest.getAttribute(Attributes.HOLD);
@@ -128,7 +130,8 @@ public abstract class AbstractBOSHTest {
             .setAttribute(Attributes.WAIT, waitStr)
             .setAttribute(Attributes.VER, verStr)
             .setAttribute(Attributes.HOLD, holdStr)
-            .setAttribute(Attributes.INACTIVITY, "3");
+            .setAttribute(Attributes.INACTIVITY, "3")
+            .setAttribute(Attributes.POLLING, "9999999");
     }
 
     /**
