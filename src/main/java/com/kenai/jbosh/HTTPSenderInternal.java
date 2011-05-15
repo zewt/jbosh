@@ -233,17 +233,6 @@ final class HTTPSenderInternal implements HTTPSender {
             this.params = params;
             this.requestData = requestData;
 
-            // LOG.log(Level.WARNING, "Attempting to send packet; keepalive: " +
-            //        (supportsKeepAlive == null? "(unknown)":supportsKeepAlive.toString()));
-
-            // XXX: we can raise hold already, even if we're not actively padding empty requests;
-            // but that can only be done if maxConnections is 1--if we don't have keepalive then
-            // hold must be 0
-            // what happens if we request hold=3 and the server doesn't support keepalives at all?
-            // the second connection would be kept held
-            //
-            // XXX: caller needs to handle sending empty requests to fill the pipeline buffer
-
             sendOrQueueRequest();
         }
 
