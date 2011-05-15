@@ -9,10 +9,17 @@ import java.net.URI;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Vector;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.net.SocketFactory;
+
+import com.kenai.jbosh.HTTPSenderInternal.InternalHTTPResponse;
 
 
 /**
@@ -28,10 +35,14 @@ import javax.net.SocketFactory;
  * if the caller supports direct XMPP he's likely to have his own proxy-handling code anyway,
  * so it would result in duplicate code.  
  */
-class InternalHTTPConnection {
+class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
+   
+    private static final Logger LOG =
+        Logger.getLogger(InternalHTTPConnection.class.getName());
+
     NonBlockingSocket socket;
 
-    private int requestsOutstanding = 0;
+    private Queue<T> outstandingRequests = new LinkedList<T>();
 
     /** The maximum size of header data. This should be large enough to hold any
      * reasonable HTTP response header. */
@@ -60,40 +71,48 @@ class InternalHTTPConnection {
     Thread thread = null;
     LinkedBlockingQueue<byte[]> queuedPackets = new LinkedBlockingQueue<byte[]>();
 
-    /** Send request data over the connection.  If an error occurs, an exception will
-     * be thrown on the next call to waitForNextResponse(). */
-    public void sendRequest(byte[] data) {
+    /** Send request data over the connection.  This call will never block for I/O.  If an
+     * error occurs, an exception will be thrown on the next call to waitForNextResponse(). */
+    public void sendRequest(byte[] data, T response) {
         socket.write(data);
         synchronized(this) {
-            ++requestsOutstanding;
+            outstandingRequests.add(response);
         }
     }
 
     /** Return the number of requests which have been sent with sendRequest which have
      * not yet been received by a call to waitForNextResponse. */
-    public int getRequestsOutstanding() { return requestsOutstanding; }
+    public int getRequestsOutstanding() { return outstandingRequests.size(); }
 
     /** Permanently close the connection.  All requests are cancelled, the connection
      * is closed and all further requests will throw ChannelClosedException. */
     public synchronized void abort() {
-        android.util.Log.v("FOO", "abort()");
+        LOG.log(Level.WARNING, "abort()");
         socket.close();
-        requestsOutstanding = 0;
-        
+
+        // If the request failed, all other requests on the same connection have failed as well.
+        Queue<T> requestsFailed = outstandingRequests;
+        outstandingRequests = new LinkedList<T>();
+        for(T req: requestsFailed) {
+            req.requestAborted();
+        }
+
         responseHeaders = null;
         responseData = null;
         responseStatusCode = null;
     }
 
     /** Wait until the next response is received. */
-    public void waitForNextResponse() throws IOException {
+    public T waitForNextResponse() throws IOException {
+        T response;
         synchronized(this) {
-            if(requestsOutstanding == 0)
+            response = outstandingRequests.poll();
+            if(response == null)
                 throw new RuntimeException("No requests are outstanding");
-            --requestsOutstanding;
         }
 
         readRequest();
+        return response;
     }
 
     
@@ -446,7 +465,9 @@ class InternalHTTPConnection {
 /* This class implements non-blocking opening and writing sockets, and blocking
  * socket reads. */
 class NonBlockingSocket {
-    private SocketFactory factory;
+    private static final Logger LOG =
+        Logger.getLogger(NonBlockingSocket.class.getName());
+
     private URI uri;
     private Thread thread;
     private IOException error;
@@ -459,11 +480,10 @@ class NonBlockingSocket {
      * immediately.  If a connection error occurs, it will be reported on the first
      * call to read(). */
     public NonBlockingSocket(URI uri, SocketFactory factory) {
-        this.factory = factory;
         this.uri = uri;
 
         try {
-            android.util.Log.w("FOO", "creating socket");
+            LOG.log(Level.WARNING, "creating socket");
             socket = factory.createSocket();
         } catch(IOException e) {
             // In the unlikely case that creating the socket itself fails, stash
@@ -528,7 +548,7 @@ class NonBlockingSocket {
 
     /** Close the connection, discarding any data not yet delivered. */
     public void close() {
-        android.util.Log.w("FOO", "close()");
+        LOG.log(Level.WARNING, "close()");
         synchronized(this) {
             if(closed)
                 return;
@@ -545,7 +565,7 @@ class NonBlockingSocket {
         // Closing the socket will cancel the thread if it's connecting or writing to
         // the socket.  Interrupt will which will stop the thread if it's waiting
         // on queuedPackets.take.
-        android.util.Log.w("FOO", "interrupting()");
+        LOG.log(Level.WARNING, "interrupting()");
         thread.interrupt();
         try {
             socket.close();
@@ -559,7 +579,7 @@ class NonBlockingSocket {
         boolean interrupted = false;
         while(true) {
             try {
-                android.util.Log.w("FOO", "joining");
+                LOG.log(Level.WARNING, "joining");
                 thread.join();
             } catch(InterruptedException e) {
                 interrupted = true;
@@ -568,7 +588,7 @@ class NonBlockingSocket {
             break;
         }
 
-        android.util.Log.w("FOO", "closed");
+        LOG.log(Level.WARNING, "closed");
         if(interrupted)
             Thread.currentThread().interrupt();
 
@@ -591,14 +611,14 @@ class NonBlockingSocket {
         
         try {
             // Open the connection.
-            android.util.Log.w("FOO", "connecting socket");
+            LOG.log(Level.WARNING, "connecting socket");
             socket.connect(new InetSocketAddress(uri.getHost(), uri.getPort()));
-            android.util.Log.w("FOO", "created socket");
+            LOG.log(Level.WARNING, "created socket");
             newInputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
         } catch(IOException e) {
             e.printStackTrace();
-            android.util.Log.w("FOO", "exception creating socket");
+            LOG.log(Level.WARNING, "exception creating socket");
             if(newInputStream != null) {
                 try { newInputStream.close(); } catch(IOException e2) { }
             }

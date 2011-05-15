@@ -19,21 +19,24 @@ package com.kenai.jbosh;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 import java.util.Vector;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
-
-import android.util.Log;
 
 /**
  * Implementation of the {@code HTTPSender} interface which uses InternalHTTPConnection.
  */
 final class HTTPSenderInternal implements HTTPSender {
+    private static final Logger LOG =
+        Logger.getLogger(HTTPSenderInternal.class.getName());
+
     /** Value to use for the ACCEPT_ENCODING header. */
     private final String ACCEPT_ENCODING_VAL =
             ZLIBCodec.getID() + ", " + GZIPCodec.getID();
@@ -41,20 +44,13 @@ final class HTTPSenderInternal implements HTTPSender {
     /** Session configuration. */
     private BOSHClientConfig cfg;
 
-    class ActiveConnection {
-        InternalHTTPConnection connection;
-        HashSet<InternalHTTPResponse> responses = new HashSet<InternalHTTPResponse>(); 
-    };
-    Vector<ActiveConnection> connections = new Vector<ActiveConnection>();
+    Vector<InternalHTTPConnection<InternalHTTPResponse>> connections = new Vector<InternalHTTPConnection<InternalHTTPResponse>>();
 
-    LinkedList<InternalHTTPResponse> requestQueue = new LinkedList<InternalHTTPResponse>();
-    
+    Queue<InternalHTTPResponse> requestQueue = new LinkedList<InternalHTTPResponse>();
+
     /** If true, the server supports keep-alive connections; if false, it responded with
      * Connection: close.  If null, we havn't received a response yet, so we don't know. */
     private Boolean supportsKeepAlive = null;
-    
-    HTTPSenderInternal() {
-    }
 
     public void init(final BOSHClientConfig session) {
         synchronized(this) {
@@ -63,23 +59,21 @@ final class HTTPSenderInternal implements HTTPSender {
     }
 
     public synchronized void destroy() {
-        android.util.Log.v("FOO", "XMPPSenderInternal: destroy");
-        
-        Vector<InternalHTTPResponse> connectionsToDestroy = new Vector<InternalHTTPResponse>();
+        LOG.log(Level.WARNING, "XMPPSenderInternal: destroy");
+
+        Vector<InternalHTTPConnection<InternalHTTPResponse>> connectionsToDestroy;
         synchronized(this) {
             if(cfg == null)
                 return;
 
+            connectionsToDestroy = connections;
+            connections = null;
             requestQueue.clear();
-            for(ActiveConnection conn: connections) {
-                connectionsToDestroy.addAll(conn.responses);
-                conn.responses.clear();
-            }
         }
-        
-        for(InternalHTTPResponse conn: connectionsToDestroy) {
-            android.util.Log.v("FOO", "XMPPSenderInternal: destroy: aborting a connection");
-            conn.abort();
+
+        for(InternalHTTPConnection<InternalHTTPResponse> connection: connectionsToDestroy) {
+            LOG.log(Level.WARNING, "XMPPSenderInternal: destroy: aborting a connection");
+            connection.abort();
         }
         cfg = null;
     }
@@ -121,7 +115,7 @@ final class HTTPSenderInternal implements HTTPSender {
         if (cfg.isCompressionEnabled())
             headers.put("Accept-Encoding", ACCEPT_ENCODING_VAL);
         headers.put("Content-Length", String.valueOf(data.length));
-        
+
         // Construct the HTTP request header.
         StringBuilder sb = new StringBuilder();
         sb.append("POST "); sb.append(cfg.getURI().getPath()); sb.append(" HTTP/1.1\r\n");
@@ -137,7 +131,7 @@ final class HTTPSenderInternal implements HTTPSender {
         } catch(UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
-        
+
         // Combine the header and payload to make the final request.
         byte[] requestData = new byte[requestHeaderData.length + data.length];
         System.arraycopy(requestHeaderData, 0, requestData, 0, requestHeaderData.length);
@@ -148,38 +142,81 @@ final class HTTPSenderInternal implements HTTPSender {
 
     /** The given response just completed. */
     synchronized void requestCompleted(InternalHTTPResponse response, boolean success) {
-        Log.w("HTTP", "Packet completed (" + (success? "success":"fail"));
+        LOG.log(Level.WARNING, "Packet completed (" + (success? "success":"fail") + ")");
 
-        // Remove the request from the connection's request list.
-        response.conn.responses.remove(response); 
-        
-        // If the request failed, all other requests on the same connection have failed as well.
-        if(!success) {
-            HashSet<InternalHTTPResponse> responsesFailed = response.conn.responses;
-            response.conn.responses = new HashSet<InternalHTTPResponse>();
-            for(InternalHTTPResponse resp: responsesFailed) {
-                resp.abortWithError(new BOSHException("Previous request on pipeline failed"));
-            }
+        // Take the connection from the request;
+        InternalHTTPConnection<InternalHTTPResponse> activeConnection = response.connection;
+        response.connection = null;
+
+        if(success && activeConnection == null)
+            throw new IllegalStateException("Connection ended successfully, but without a connection");
+
+        // If the connection doesn't support keepalive, shut down the connection, if any.
+        if(activeConnection != null && !supportsKeepAlive) {
+            LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
+            activeConnection.abort();
+            connections.remove(activeConnection);
+            activeConnection = null;
         }
 
         // If a request is queued, start it using the same connection.
-        try {
-            InternalHTTPResponse nextInQueue = requestQueue.removeFirst();
-            Log.w("HTTP", "Starting previously queued packet");
+        InternalHTTPResponse nextInQueue = requestQueue.poll();
+        if(nextInQueue != null) {
+            LOG.log(Level.WARNING, "Starting previously queued packet");
 
-            nextInQueue.sendRequest(response.conn);
-        } catch(NoSuchElementException e) {
+            // Start the next request in the queue.
+            nextInQueue.sendOrQueueRequest();
         }
     }
 
-    final class InternalHTTPResponse implements HTTPResponse {
+    synchronized InternalHTTPConnection<InternalHTTPResponse> getFirstConnection() {
+        if(connections.size() == 0)
+            return null;
+        return connections.get(0);
+    }
+
+    /**
+     * Determine the maximum number of connections to make to the server simultaneously.
+     *
+     * @param params
+     * @return
+     */
+    int getMaxConnections(CMSessionParams params) {
+        // If we havn't yet determined keepalive support, only make one connection.
+        // This requires us to finish the session creation request and receive its
+        // response before deciding to open any more connections.
+        if(supportsKeepAlive == null)
+            return 1;
+
+        // If keepalive support is available, only make one persistent connection.
+        if(supportsKeepAlive)
+            return 1;
+
+        // Keepalive support isn't available, so we'll need to make multiple connections.
+        // We should have params by now, because it's filled in on the first response, but
+        // if it's not, assume two connections.
+        if(params == null)
+            return 2;
+
+        // If the server has told us how many parallel connections we can make, use that value.
+        AttrRequests requests = params.getRequests();
+        if(requests != null)
+            return requests.getValue();
+
+        // If the server hasn't told us how many requests to make, assume a default of 4.  This
+        // allows us to make a holding connection, and to also send small bursts of packets without
+        // waiting for a response from each one before sending the next.
+        return 4;
+    }
+
+    final class InternalHTTPResponse implements HTTPResponse, InternalHTTPRequestBase {
         /** The request to be sent. */
         byte[] requestData;
 
         /* The connection this response was sent over, or null if this request has not yet been
          * sent. */
-        ActiveConnection conn;
-        
+        InternalHTTPConnection<InternalHTTPResponse> connection;
+
         /** Exception to throw when the response data is attempted to be accessed,
          * or {@code null} if no exception should be thrown. */
         private BOSHException toThrow;
@@ -191,18 +228,14 @@ final class HTTPSenderInternal implements HTTPSender {
         /** The HTTP response status code. */
         private int statusCode;
 
-        private void sendRequest(ActiveConnection conn) {
-            conn.connection.sendRequest(requestData);
-            conn.responses.add(this);
-            this.conn = conn;
-        }
-                
+        private CMSessionParams params;
+
         /**
          * Create and send a new request to the upstream connection manager,
          * providing deferred access to the results to be returned.
          *
          * This is called with HTTPSenderInternal locked.
-         *  
+         *
          * @param client client instance to use when sending the request
          * @param params connection manager parameters from the session creation
          *  response, or {@code null} if the session has not yet been established
@@ -211,109 +244,112 @@ final class HTTPSenderInternal implements HTTPSender {
         InternalHTTPResponse(byte[] requestData, final CMSessionParams params)
         {
             super();
+            this.params = params;
             this.requestData = requestData;
-            
-            if(!requestQueue.isEmpty()) {
-                // If requests are already being queued, then this request will be queued too.
-                Log.w("HTTP", "Queueing packet because we're already queueing");
-                requestQueue.addLast(this);
-                return;
-            }
-            
-            // Try sending the request to each available connection.
-            Log.w("HTTP", "Attemping to send packet...");
-            for(ActiveConnection conn: connections) {
-                if(conn.connection.getRequestsOutstanding() > 0) {
-                    // If there's already a request on this connection, and it doesn't support
-                    // keepalive or we don't yet know if it does, then don't send another request
-                    // on this connection yet.
-                    if(supportsKeepAlive == null || !supportsKeepAlive)
-                        continue;
+
+            LOG.log(Level.WARNING, "Attempting to send packet; keepalive: " +
+                    (supportsKeepAlive == null? "(unknown)":supportsKeepAlive.toString()));
+
+            // XXX: we can raise hold already, even if we're not actively padding empty requests;
+            // but that can only be done if maxConnections is 1--if we don't have keepalive then
+            // hold must be 0
+            // what happens if we request hold=3 and the server doesn't support keepalives at all?
+            // the second connection would be kept held
+            //
+            // XXX: caller needs to handle sending empty requests to fill the pipeline buffer
+
+            sendOrQueueRequest();
+        }
+
+        /**
+         * Send the request over an existing connection, create a new connection, or
+         * queue the request to be sent in the future.
+         */
+        void sendOrQueueRequest() {
+            synchronized(HTTPSenderInternal.this) {
+                if(connection != null)
+                    throw new IllegalStateException("Request already sent");
+
+                // If keepalive is supported, send the request immediately on the first (and
+                // normally only) connection.
+                //
+                // Note that we place no restrictions on the number of requests that can be queued in a
+                // single pipelined request.  Rate-limiting requests is the job of the caller, since only
+                // new requests are rate-limited and not retransmissions (see XEP-0124 11 Overactivity).
+                if(supportsKeepAlive != null && supportsKeepAlive) {
+                    connection = getFirstConnection();
+                    if(connection != null) {
+                        LOG.log(Level.WARNING, "Sending packet over keepalive");
+                        connection.sendRequest(requestData, this);
+                        return;
+                    }
+                    LOG.log(Level.WARNING, "No connection took our packet");
                 }
-                Log.w("HTTP", "Sending packet");
-                sendRequest(conn);
-                return;
-            }
-            Log.w("HTTP", "No connection took our packet");
-            
-            // No connections were available to take the request.  If we're allowed to start another
-            // connection, do so; otherwise queue the request for later.
-            //
-            // If pipelining is known to be supported, maxConnections is 1.  This is only
-            // known after the first request to a server has completed.
-            //
-            // If pipelining is known to be not supported, maxConnections is 2.
-            //
-            // If we don't yet know whether pipelining is supported, maxConnections is 1 until we
-            // find out.  This requires that the first request to the server always return without
-            // waiting; this is guaranteed so long as the same HTTPSender class is used for a whole
-            // session. 
-            //
-            // We place no restrictions on the number of requests that can be queued in a single
-            // pipelined request.
-            int maxConnections;
-            if(supportsKeepAlive == null)
-                maxConnections = 1; // keepalive support not yet known
-            else if(supportsKeepAlive)
-                maxConnections = 1; // keepalive support is available; use pipelining
-            else {
-                // If the server has told us how many parallel connections to make, use that value.
-                // We should always have params from the first packet by now, but if we still don't
-                // have it fall back on one connection.
-                if(params != null)
-                    maxConnections = params.getRequests().getValue();
-                else
-                    maxConnections = 1;
-            }
-            
-            if(connections.size() == maxConnections) {
-                // We have too many connections outstanding to make any more, so queue the request.
-                Log.w("HTTP", "Queueing packet");
-                requestQueue.addLast(this);
-                return;
-                
-            }
 
-            Log.w("HTTP", "Starting a new connection");
+                // If we already have too many connections, don't start another.
+                int maxConnections = getMaxConnections(params);
+                if(connections.size() == maxConnections) {
+                    // We already have too many connections, so queue the request.
+                    LOG.log(Level.WARNING, "Queueing packet");
+                    requestQueue.add(this);
+                    return;
+                }
 
-            ActiveConnection conn = new ActiveConnection();
-            SocketFactory socketFactory = null;
-            if(cfg.getURI().getScheme().equals("https")) {
-                // Use the supplied SSLSocketFactory, if any.  Otherwise, use the system-provided one.
-                socketFactory = cfg.getSocketFactory();
-                if(socketFactory == null)
-                    socketFactory = SSLSocketFactory.getDefault();
+                LOG.log(Level.WARNING, "Starting a new connection");
+
+                SocketFactory socketFactory = null;
+                if(cfg.getURI().getScheme().equals("https")) {
+                    // Use the supplied SSLSocketFactory, if any.  Otherwise, use the system-provided one.
+                    socketFactory = cfg.getSocketFactory();
+                    if(socketFactory == null)
+                        socketFactory = SSLSocketFactory.getDefault();
+                }
+
+                // Creating the InternalHTTPConnection will never block, so this is safe to call
+                // while synchronized.
+                connection = new InternalHTTPConnection<InternalHTTPResponse>(cfg.getURI(), socketFactory);
+                connections.add(connection);
+
+                // Send the request over the connection we just created.
+                connection.sendRequest(requestData, this);
             }
-            
-            conn.connection = new InternalHTTPConnection(cfg.getURI(), socketFactory); 
-            connections.add(conn);
-
-            // Send the request over the connection we just created.
-            sendRequest(conn);
         }
 
         BOSHException abortWithError(BOSHException e) {
             // Cancel the request.
-            InternalHTTPConnection connectionToCancel = null;
-            synchronized(this) {
-                android.util.Log.w("FOO", "HTTPSender abortWithError " + (conn.connection != null? "set":"null"));
-                connectionToCancel = conn.connection;
-                conn.connection = null;
+            InternalHTTPConnection<InternalHTTPResponse> connectionToCancel = null;
+            synchronized(HTTPSenderInternal.this) {
+                // Stop if we're already cancelled.
+                if(toThrow != null)
+                    return toThrow;
+                toThrow = e;
+
+                LOG.log(Level.WARNING, "HTTPSender abortWithError " + (connection != null? "set":"null"));
+                connectionToCancel = connection;
+                connection = null;
             }
-            
+
+            // Shut down the connection.  This will send requestAborted to any
+            // other pipelined requests on this connection.  XXX: test
             if(connectionToCancel != null)
                 connectionToCancel.abort();
 
-            body = null;
-            toThrow = e;
             requestCompleted(this, false);
-            android.util.Log.w("FOO", "HTTPSender abortWithError done");
+            LOG.log(Level.WARNING, "HTTPSender abortWithError done");
             return toThrow;
         }
 
         /** Abort the client transmission and response processing. */
         public void abort() {
-            android.util.Log.v("FOO", "HTTPSender abort()");
+            LOG.log(Level.WARNING, "HTTPSender abort()");
+            abortWithError(new BOSHException("HTTP request aborted"));
+        }
+
+        /**
+         * When abort() aborts a connection, this method is called on all requests
+         * using the connection, including the request initially aborted.
+         */
+        public void requestAborted() {
             abortWithError(new BOSHException("HTTP request aborted"));
         }
 
@@ -356,51 +392,56 @@ final class HTTPSenderInternal implements HTTPSender {
          * @throws BOSHException on communication failure
          */
         private void awaitResponse() throws BOSHException {
-            /* Synchronize to take a reference to the connection.  If another
-             * thread calls abort() it may abort the connection and set
-             * conn.connection to null while we're using it. */
-            InternalHTTPConnection connection;
+            // Synchronize to take a reference to the connection.  If another
+            // thread calls abort() it may abort the connection and set
+            // connection to null.
+            InternalHTTPConnection<InternalHTTPResponse> connection;
             synchronized(this) {
                 if(toThrow != null)
                     throw toThrow;
+                // If we already have a response, stop.
+
                 if(body != null)
                     return;
 
-                connection = conn.connection;
-            }                    
+                connection = this.connection;
+            }
 
             // At this point, we can safely access connection's methods, which are threadsafe,
             // but we can't access conn.
             try {
-                connection.waitForNextResponse();
-                
+                InternalHTTPResponse resp = connection.waitForNextResponse();
+                if(resp != this)
+                    throw new RuntimeException("Received a response that wasn't for us");
+
                 byte[] data = connection.getData();
 
                 String encoding = connection.getResponseHeader("Content-Encoding");
-                if (ZLIBCodec.getID().equalsIgnoreCase(encoding)) {
+                if (ZLIBCodec.getID().equalsIgnoreCase(encoding))
                     data = ZLIBCodec.decode(data);
-                } else if (GZIPCodec.getID().equalsIgnoreCase(encoding)) {
+                else if (GZIPCodec.getID().equalsIgnoreCase(encoding))
                     data = GZIPCodec.decode(data);
-                }
+
                 String bodyData = new String(data, "UTF-8");
 
                 body = StaticBody.fromString(bodyData);
                 statusCode = connection.getStatusCode();
-                
-                // After a response, detect whether keepalives are supported.  Don't support keepalives
-                // for HTTP/1.0 servers; there shouldn't be any, and we'd have to handle max keepalives
-                // to handle it.  
-                if(connection.getResponseMajorVersion() == 1 && connection.getResponseMinorVersion() == 0)
-                    supportsKeepAlive = false;
-                else if(connection.getResponseHeader("Connection").equalsIgnoreCase("close"))
-                    supportsKeepAlive = false;
-                else
-                    supportsKeepAlive = true;
             } catch (IOException e) {
                 throw abortWithError(new BOSHException("Could not obtain response", e));
             }
 
-            // Tell HTTPSenderInternal that we're done.  Don't call this with this object locked. 
+            // After a response, detect whether keepalives are supported.  Don't support keepalives
+            // for HTTP/1.0 servers; there shouldn't be any, and we'd have to handle max keepalives
+            // to handle it.
+            if(connection.getResponseMajorVersion() == 1 && connection.getResponseMinorVersion() == 0)
+                supportsKeepAlive = false;
+            else if(connection.getResponseHeader("Connection").equalsIgnoreCase("close"))
+                supportsKeepAlive = false;
+            else
+                supportsKeepAlive = true;
+            supportsKeepAlive = false;
+
+            // Tell HTTPSenderInternal that we're done.  Don't call this with this object locked.
             requestCompleted(this, true);
         }
     }
