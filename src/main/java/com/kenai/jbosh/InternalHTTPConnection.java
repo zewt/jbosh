@@ -625,7 +625,6 @@ class NonBlockingSocket {
             newInputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
         } catch(IOException e) {
-            e.printStackTrace();
             // LOG.log(Level.WARNING, "exception creating socket");
             if(newInputStream != null) {
                 try { newInputStream.close(); } catch(IOException e2) { }
