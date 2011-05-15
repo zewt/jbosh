@@ -237,23 +237,30 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     private byte[] readChunkedBlocking() throws IOException {
         Vector<byte[]> chunks = new Vector<byte[]>();
         while(true) {
-            Integer chunkStartPos = null;
-
             // Read data until we have a complete chunk header.
+            String chunkHeader = null;
             while(true) {
-                int lastSearchPos = 0;
+                int lastSearchPos = inputBufferPosition;
                 
-                // See if we have a complete chunk-header; search for the terminating CRLF.
-                for(int i = lastSearchPos; i < inputBufferAvail-2; ++i) {
-                    if(inputBuffer[i+0] == '\r' && inputBuffer[i+1] == '\n')
+                for(int i = lastSearchPos; i < inputBufferAvail; ++i) {
+                    if(i+1 < inputBufferAvail && inputBuffer[i+0] == '\r' && inputBuffer[i+1] == '\n')
                     {
                         // The headers ends at i, and the response body begins at i+4.
-                        chunkStartPos = i+2;
+                        chunkHeader = makeString(inputBuffer, inputBufferPosition, i-inputBufferPosition);
+                        inputBufferPosition = i+2;
+                        break;
+                    }
+
+                    if(i+0 < inputBufferAvail && inputBuffer[i+0] == '\n')
+                    {
+                        // The headers ends at i, and the response body begins at i+2.
+                        chunkHeader = makeString(inputBuffer, inputBufferPosition, i-inputBufferPosition);
+                        inputBufferPosition = i+1;
                         break;
                     }
                 }
-    
-                if(chunkStartPos != null)
+
+                if(chunkHeader != null)
                     break;
     
                 // Next time we search, start from where we left off, so searching isn't O(n^2).
@@ -263,16 +270,13 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                     throw new IOException("Couldn't find chunk header");
             }
             
-            inputBufferPosition = chunkStartPos;
-            String chunkHeader = makeString(inputBuffer, 0, chunkStartPos-2);
-
             // If there's a chunk-extension, ignore it.
             int spacePos = chunkHeader.indexOf(" ");
             if(spacePos != -1)
-                chunkHeader = chunkHeader.substring(0, spacePos-1);
+                chunkHeader = chunkHeader.substring(0, spacePos);
 
             // Parse the chunk header.
-            int chunkSize = Integer.parseInt(chunkHeader, 16);
+            int chunkSize;
             try {
                 chunkSize = Integer.parseInt(chunkHeader, 16);
             } catch(NumberFormatException e) {
@@ -295,6 +299,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             // Read the chunk.
             byte[] chunk = new byte[chunkSize];
             readDataBlocking(chunk, chunkSize, false);
+            chunks.add(chunk);
         }
         
         return combineChunks(chunks);
@@ -428,16 +433,19 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                 String existingHeader = responseHeaders.get(currentHeader);
                 assert(existingHeader != null);
 
-                responseHeaders.put(currentHeader, existingHeader + existingHeader);
+                // Skip leading whitespace. 
+                int dataPos = 0;
+                while(dataPos < line.length() && (line.charAt(dataPos) == ' ' || line.charAt(dataPos) == '\t'))
+                    ++dataPos;
+
+                responseHeaders.put(currentHeader, existingHeader + line.substring(dataPos, line.length()));
                 continue;
             }
             
-
             int separator = line.indexOf(":");
             if(separator == -1)
                 throw new IOException("Invalid response header (no separator)");
-            
-            
+
             // Skip leading whitespace after the colon. 
             int dataPos = separator + 1;
             while(dataPos < line.length() && (line.charAt(dataPos) == ' ' || line.charAt(dataPos) == '\t'))
