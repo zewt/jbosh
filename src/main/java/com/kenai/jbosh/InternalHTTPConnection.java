@@ -483,7 +483,7 @@ class NonBlockingSocket {
         this.uri = uri;
 
         try {
-            LOG.log(Level.WARNING, "creating socket");
+//            LOG.log(Level.WARNING, "creating socket");
             socket = factory.createSocket();
         } catch(IOException e) {
             // In the unlikely case that creating the socket itself fails, stash
@@ -499,7 +499,7 @@ class NonBlockingSocket {
         };
 
         thread = new Thread(r);
-        thread.setName("BOSH thread: " + uri.getHost() + ":" + uri.getPort());
+        thread.setName("NonBlockingSocket thread: " + uri.getHost() + ":" + uri.getPort());
         thread.start();
     }
 
@@ -548,7 +548,7 @@ class NonBlockingSocket {
 
     /** Close the connection, discarding any data not yet delivered. */
     public void close() {
-        LOG.log(Level.WARNING, "close()");
+        // LOG.log(Level.WARNING, "close()");
         synchronized(this) {
             if(closed)
                 return;
@@ -565,7 +565,7 @@ class NonBlockingSocket {
         // Closing the socket will cancel the thread if it's connecting or writing to
         // the socket.  Interrupt will which will stop the thread if it's waiting
         // on queuedPackets.take.
-        LOG.log(Level.WARNING, "interrupting()");
+        // LOG.log(Level.WARNING, "interrupting()");
         thread.interrupt();
         try {
             socket.close();
@@ -579,7 +579,7 @@ class NonBlockingSocket {
         boolean interrupted = false;
         while(true) {
             try {
-                LOG.log(Level.WARNING, "joining");
+                // LOG.log(Level.WARNING, "joining");
                 thread.join();
             } catch(InterruptedException e) {
                 interrupted = true;
@@ -588,7 +588,7 @@ class NonBlockingSocket {
             break;
         }
 
-        LOG.log(Level.WARNING, "closed");
+        // LOG.log(Level.WARNING, "closed");
         if(interrupted)
             Thread.currentThread().interrupt();
 
@@ -611,14 +611,14 @@ class NonBlockingSocket {
         
         try {
             // Open the connection.
-            LOG.log(Level.WARNING, "connecting socket");
+            // LOG.log(Level.WARNING, "connecting socket");
             socket.connect(new InetSocketAddress(uri.getHost(), uri.getPort()));
-            LOG.log(Level.WARNING, "created socket");
+            // LOG.log(Level.WARNING, "created socket");
             newInputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
         } catch(IOException e) {
             e.printStackTrace();
-            LOG.log(Level.WARNING, "exception creating socket");
+            // LOG.log(Level.WARNING, "exception creating socket");
             if(newInputStream != null) {
                 try { newInputStream.close(); } catch(IOException e2) { }
             }

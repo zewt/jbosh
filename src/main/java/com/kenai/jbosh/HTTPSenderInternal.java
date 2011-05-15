@@ -59,7 +59,7 @@ final class HTTPSenderInternal implements HTTPSender {
     }
 
     public synchronized void destroy() {
-        LOG.log(Level.WARNING, "XMPPSenderInternal: destroy");
+        // LOG.log(Level.WARNING, "XMPPSenderInternal: destroy");
 
         Vector<InternalHTTPConnection<InternalHTTPResponse>> connectionsToDestroy;
         synchronized(this) {
@@ -72,7 +72,7 @@ final class HTTPSenderInternal implements HTTPSender {
         }
 
         for(InternalHTTPConnection<InternalHTTPResponse> connection: connectionsToDestroy) {
-            LOG.log(Level.WARNING, "XMPPSenderInternal: destroy: aborting a connection");
+            // LOG.log(Level.WARNING, "XMPPSenderInternal: destroy: aborting a connection");
             connection.abort();
         }
         cfg = null;
@@ -153,7 +153,7 @@ final class HTTPSenderInternal implements HTTPSender {
 
         // If the connection doesn't support keepalive, shut down the connection, if any.
         if(activeConnection != null && !supportsKeepAlive) {
-            LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
+            // LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
             activeConnection.abort();
             connections.remove(activeConnection);
             activeConnection = null;
@@ -162,7 +162,7 @@ final class HTTPSenderInternal implements HTTPSender {
         // If a request is queued, start it using the same connection.
         InternalHTTPResponse nextInQueue = requestQueue.poll();
         if(nextInQueue != null) {
-            LOG.log(Level.WARNING, "Starting previously queued packet");
+            // LOG.log(Level.WARNING, "Starting previously queued packet");
 
             // Start the next request in the queue.
             nextInQueue.sendOrQueueRequest();
@@ -247,8 +247,8 @@ final class HTTPSenderInternal implements HTTPSender {
             this.params = params;
             this.requestData = requestData;
 
-            LOG.log(Level.WARNING, "Attempting to send packet; keepalive: " +
-                    (supportsKeepAlive == null? "(unknown)":supportsKeepAlive.toString()));
+            // LOG.log(Level.WARNING, "Attempting to send packet; keepalive: " +
+            //        (supportsKeepAlive == null? "(unknown)":supportsKeepAlive.toString()));
 
             // XXX: we can raise hold already, even if we're not actively padding empty requests;
             // but that can only be done if maxConnections is 1--if we don't have keepalive then
@@ -279,23 +279,23 @@ final class HTTPSenderInternal implements HTTPSender {
                 if(supportsKeepAlive != null && supportsKeepAlive) {
                     connection = getFirstConnection();
                     if(connection != null) {
-                        LOG.log(Level.WARNING, "Sending packet over keepalive");
+                        // LOG.log(Level.WARNING, "Sending packet over keepalive");
                         connection.sendRequest(requestData, this);
                         return;
                     }
-                    LOG.log(Level.WARNING, "No connection took our packet");
+                    // LOG.log(Level.WARNING, "No connection took our packet");
                 }
 
                 // If we already have too many connections, don't start another.
                 int maxConnections = getMaxConnections(params);
                 if(connections.size() == maxConnections) {
                     // We already have too many connections, so queue the request.
-                    LOG.log(Level.WARNING, "Queueing packet");
+                    // LOG.log(Level.WARNING, "Queueing packet");
                     requestQueue.add(this);
                     return;
                 }
 
-                LOG.log(Level.WARNING, "Starting a new connection");
+                // LOG.log(Level.WARNING, "Starting a new connection");
 
                 SocketFactory socketFactory = null;
                 if(cfg.getURI().getScheme().equals("https")) {
@@ -324,7 +324,7 @@ final class HTTPSenderInternal implements HTTPSender {
                     return toThrow;
                 toThrow = e;
 
-                LOG.log(Level.WARNING, "HTTPSender abortWithError " + (connection != null? "set":"null"));
+                // LOG.log(Level.WARNING, "HTTPSender abortWithError " + (connection != null? "set":"null"));
                 connectionToCancel = connection;
                 connection = null;
             }
@@ -335,13 +335,13 @@ final class HTTPSenderInternal implements HTTPSender {
                 connectionToCancel.abort();
 
             requestCompleted(this, false);
-            LOG.log(Level.WARNING, "HTTPSender abortWithError done");
+            // LOG.log(Level.WARNING, "HTTPSender abortWithError done");
             return toThrow;
         }
 
         /** Abort the client transmission and response processing. */
         public void abort() {
-            LOG.log(Level.WARNING, "HTTPSender abort()");
+            // LOG.log(Level.WARNING, "HTTPSender abort()");
             abortWithError(new BOSHException("HTTP request aborted"));
         }
 
