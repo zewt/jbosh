@@ -47,10 +47,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         LOG.info("Sending: " + db.toXML());
         session.send(ComposableBody.fromStaticBody(sb));
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         boolean failed = false;
         try {
@@ -96,10 +94,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         StaticBody sb = StaticBody.fromString(body1);
         session.send(ComposableBody.fromStaticBody(sb));
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         boolean failed = false;
         try {
@@ -127,10 +123,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         StaticBody sb = StaticBody.fromString(body1);
         session.send(ComposableBody.fromStaticBody(sb));
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         boolean failed = false;
         try {
@@ -159,10 +153,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         sb = StaticBody.fromString(body1);
         session.send(ComposableBody.fromStaticBody(sb));
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         boolean failed = false;
         try {
@@ -203,10 +195,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
         sb = StaticBody.fromString(body1);
         session.send(ComposableBody.fromStaticBody(sb));
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         boolean failed = false;
         try {
@@ -231,10 +221,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
                 .setPayloadXML("<foo:bar>text is present</foo:bar>")
                 .build());
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         assertValidators(scr);
     }
@@ -265,10 +253,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
                 .setPayloadXML("<foo:bah/><bar:baz/>")
                 .build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         assertValidators(scr);
     }
@@ -288,15 +274,8 @@ public class XEP0124Section06Test extends AbstractBOSHTest {
             AbstractBody req = conn.getRequest().getBody();
             if (i == 0) {
                 // Session creation response
-                String waitStr = req.getAttribute(Attributes.WAIT);
-                String verStr = req.getAttribute(Attributes.VER);
-                String holdStr = req.getAttribute(Attributes.HOLD);
-                scr = ComposableBody.builder()
-                        .setAttribute(Attributes.SID, "1")
-                        .setAttribute(Attributes.WAIT, waitStr)
-                        .setAttribute(Attributes.VER, verStr)
-                        .setAttribute(Attributes.INACTIVITY, "3")
-                        .setAttribute(Attributes.HOLD, holdStr)
+                scr = getSessionCreationResponse(req)
+                        .setAttribute(Attributes.REQUESTS, "1")
                         .build();
                 conn.sendResponse(scr);
             } else {

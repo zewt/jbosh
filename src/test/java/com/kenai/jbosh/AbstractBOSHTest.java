@@ -117,6 +117,21 @@ public abstract class AbstractBOSHTest {
     }
 
     /**
+     * Given a session creation request, return the default session creation response.
+     */
+    ComposableBody.Builder getSessionCreationResponse(AbstractBody creationRequest) {
+        String waitStr = creationRequest.getAttribute(Attributes.WAIT);
+        String verStr = creationRequest.getAttribute(Attributes.VER);
+        String holdStr = creationRequest.getAttribute(Attributes.HOLD);
+        return ComposableBody.builder()
+            .setAttribute(Attributes.SID, "123XYZ")
+            .setAttribute(Attributes.WAIT, waitStr)
+            .setAttribute(Attributes.VER, verStr)
+            .setAttribute(Attributes.HOLD, holdStr)
+            .setAttribute(Attributes.INACTIVITY, "3");
+    }
+
+    /**
      * Log the test name.
      */
     protected void logTestStart() {
