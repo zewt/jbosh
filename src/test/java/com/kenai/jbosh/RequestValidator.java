@@ -252,7 +252,6 @@ public class RequestValidator
                 assertSessionCreationRequestIDRange(request);
                 validateSessionCreationAck(idx, request);
                 validateSessionCreationSID(idx, request);
-                validateSessionCreationHold(idx, request);
             } else {
                 validateRequestHeaders(idx, request, previous);
                 validateSubsequentRequestSID(idx, request);
@@ -443,23 +442,6 @@ public class RequestValidator
             assertEquals("intial ack must be 1", "1", ack);
         }
     }
-
-    /**
-     * If the client is not able to use HTTP Pipelining then the "hold"
-     * attribute SHOULD be set to "1".
-     *
-     * @param message number (zero-based)
-     * @param request request message
-     */
-    private void validateSessionCreationHold(
-            final int idx,
-            final Node request) {
-        String hold = request.getBody().getAttribute(Attributes.HOLD);
-        assertNotNull("hold attribute was not present in initial request",
-                hold);
-        assertEquals("incorrect hold attrivute value", "1", hold);
-    }
-
 
     /**
      * All requests after the first one MUST include a valid 'sid' attribute.

@@ -52,10 +52,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
      * If the client is not able to use HTTP Pipelining then the "hold"
      * attribute SHOULD be set to "1".
      */
-    @Test
-    public void sessionCreationHold() {
-        testedBy(RequestValidator.class, "validateSessionCreationHold");
-    }
+    // HTTP Pipelining is supported.
 
     /*
      * Clients that only support Polling Sessions MAY prevent the connection

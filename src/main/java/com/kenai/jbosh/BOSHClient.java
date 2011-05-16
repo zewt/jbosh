@@ -217,18 +217,6 @@ public final class BOSHClient {
     };
 
     /**
-     * Processor thread runnable instance.
-     */
-    private final Runnable emptyRequestRunnable = new Runnable() {
-        /**
-         * Process incoming messages.
-         */
-        public void run() {
-            sendEmptyRequest();
-        }
-    };
-
-    /**
      * HTTPSender instance.
      */
     private final HTTPSender httpSender = new HTTPSenderInternal();
@@ -301,6 +289,13 @@ public final class BOSHClient {
      */
     private List<ComposableBody> pendingRequestAcks =
             new ArrayList<ComposableBody>();
+
+    /**
+     * If true, a pause request has been sent.  The session is either flushing
+     * requests and awaiting the response to the pause request, or is actively
+     * paused.
+     */
+    private boolean sessionPaused = true;
 
     ///////////////////////////////////////////////////////////////////////////
     // Classes:
@@ -481,6 +476,27 @@ public final class BOSHClient {
      */
     public void send(final ComposableBody body) throws BOSHException {
         assertUnlocked();
+        lock.lock();
+
+        try {
+            send(body, false);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /*
+     * If emptyRequest is false, send body normally, blocking if necessary until
+     * the request can be sent.
+     *
+     * If emptyRequest is true, only send the request if it wouldn't result in
+     * having more than the maximum number of held requests active.  This guarantees
+     * that if a request is sent while we're sending empty requests, after we've
+     * figured out how many to send, the asynchronous request won't cause an
+     * empty request to be sent that shouldn't be.
+     */
+    private boolean send(final ComposableBody body, boolean emptyRequest) throws BOSHException {
+        assertLocked();
         if (body == null) {
             throw(new IllegalArgumentException(
                     "Message body may not be null"));
@@ -488,14 +504,38 @@ public final class BOSHClient {
 
         HTTPExchange exch;
         CMSessionParams params;
-        lock.lock();
         try {
-            blockUntilSendable(body);
+            if(emptyRequest) {
+                // Never send empty requests while paused.
+                if (sessionPaused)
+                    return false;
+
+                // Never send empty requests if we havn't received a response to the
+                // first packet yet.
+                if (cmParams == null)
+                    return false;
+
+                // If we already have enough exchanges in the air, don't send
+                // an empty request.
+                int exchangesNeeded = cmParams.getHold().getValue() - exchanges.size();
+                if (exchangesNeeded <= 0)
+                    return false;
+
+                LOG.info("Sending empty request");
+            }
+            else {
+                blockUntilSendable(body);
+            }
+
             if (!isWorking() && !isTermination(body)) {
                 throw(new BOSHException(
                         "Cannot send message when session is closed"));
             }
             
+            // If any request is sent while we're paused, we're no longer paused.
+            if(!emptyRequest)
+                sessionPaused = false;
+
             long rid = requestIDSeq.getNextRID();
             ComposableBody request = body;
             params = cmParams;
@@ -511,14 +551,13 @@ public final class BOSHClient {
             exch = new HTTPExchange(request);
             exchanges.add(exch);
             notEmpty.signalAll();
-            clearEmptyRequest();
         } finally {
-            lock.unlock();
         }
         AbstractBody finalReq = exch.getRequest();
         HTTPResponse resp = httpSender.send(params, finalReq);
         exch.setHTTPResponse(resp);
         fireRequestSent(finalReq);
+        return true;
     }
 
     /**
@@ -552,15 +591,19 @@ public final class BOSHClient {
             if (maxPause == null) {
                 return false;
             }
-        } finally {
-            lock.unlock();
-        }
-        try {
+
             send(ComposableBody.builder()
                     .setAttribute(Attributes.PAUSE, maxPause.toString())
-                    .build());
+                    .build(), false);
+
+            // Mark the session as paused.  This will prevent any further empty requests
+            // from being sent.  This must be done after calling send(), as it clears this
+            // flag.
+            sessionPaused = true;
         } catch (BOSHException boshx) {
             LOG.log(Level.FINEST, "Could not send pause", boshx);
+        } finally {
+            lock.unlock();
         }
         return true;
     }
@@ -877,7 +920,7 @@ public final class BOSHClient {
         builder.setAttribute(Attributes.VER,
                 AttrVersion.getSupportedVersion().toString());
         builder.setAttribute(Attributes.WAIT, "60");
-        builder.setAttribute(Attributes.HOLD, "1");
+        builder.setAttribute(Attributes.HOLD, "3");
         builder.setAttribute(Attributes.RID, Long.toString(rid));
         applyRoute(builder);
         applyFrom(builder);
@@ -1145,9 +1188,20 @@ public final class BOSHClient {
                 try {
                     exchanges.remove(exch);
                     drained.signalAll();
-                    if (exchanges.isEmpty()) {
-                        scheduleEmptyRequest(processPauseRequest(req));
-                    }
+
+                    // If this is the response to a pause request, clear any empty packet timer
+                    // that's already been sent, so we reschedule based on the duration of the
+                    // pause.  If sessionPaused is false, then we sent a pause request but it
+                    // was canceleld by sending another request after it.
+                    long delay = processPauseRequest(req);
+                    if(delay != -1 && sessionPaused)
+                        clearEmptyRequest();
+
+                    if(delay == -1)
+                        delay = getDefaultEmptyRequestDelay();
+                    if(delay != -1)
+                        scheduleEmptyRequests(delay);
+
                     notFull.signalAll();
                 } finally {
                     lock.unlock();
@@ -1186,6 +1240,11 @@ public final class BOSHClient {
     private long getDefaultEmptyRequestDelay() {
         assertLocked();
         
+        // If we havn't yet received the session creation request, never send empty
+        // requests.
+        if(cmParams == null)
+            return -1;
+
         // Figure out how long we should wait before sending an empty request
         AttrPolling polling = cmParams.getPollingInterval();
         long delay;
@@ -1201,23 +1260,36 @@ public final class BOSHClient {
      * Schedule an empty request to be sent if no other requests are
      * sent in a reasonable amount of time.
      */
-    private void scheduleEmptyRequest(long delay) {
+    private void scheduleEmptyRequests(long delay) {
         assertLocked();
+
         if (delay < 0L) {
             throw(new IllegalArgumentException(
                     "Empty request delay must be >= 0 (was: " + delay + ")"));
         }
 
-        clearEmptyRequest();
         if (!isWorking()) {
             return;
         }
         
+        // If we're already scheduled, do nothing.
+        if (emptyRequestFuture != null)
+            return;
+
         // Schedule the transmission
         if (LOG.isLoggable(Level.FINER)) {
             LOG.finer("Scheduling empty request in " + delay + "ms");
         }
         try {
+            // If we're scheduling an empty request while the session is paused, then
+            // we're scheduling the request that will wake us up from pause.  If not,
+            // then sendEmptyRequests should do nothing if it's run when the session
+            // is paused.
+            final boolean wasPaused = sessionPaused;
+            Runnable emptyRequestRunnable = new Runnable() {
+                public void run() { sendEmptyRequests(wasPaused); }
+            };
+
             emptyRequestFuture = schedExec.schedule(emptyRequestRunnable,
                     delay, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException rex) {
@@ -1226,18 +1298,41 @@ public final class BOSHClient {
     }
 
     /**
-     * Sends an empty request to maintain session requirements.  If a request
+     * Sends empty requests to maintain session requirements.  If a request
      * is sent within a reasonable time window, the empty request transmission
      * will be cancelled.
+     * <p>
+     * If wakeFromPause is true, we're allowed to wake the session from a pause.
+     * If false and sessionPaused is true, do nothing.
      */
-    private void sendEmptyRequest() {
+    private void sendEmptyRequests(boolean wakeFromPause) {
         assertUnlocked();
-        // Send an empty request
-        LOG.finest("Sending empty request");
+
+        // XXX: Cork the sender, so if we're pipelining, all of these requests will
+        // be compressed and sent together.
+        lock.lock();
+
         try {
-            send(ComposableBody.builder().build());
+            if(!isWorking())
+                return;
+
+            try {
+                do {
+                    // If we're told we can wake from pause, but we're no longer paused,
+                    // switch back to a regular empty request.  This will happen if the
+                    // user sends a packet while we're paused.  It'll also happen the second
+                    // time through this loop, if hold is greater than one; the first packet
+                    // we send below will clear sessionPaused.
+                    if(!sessionPaused)
+                        wakeFromPause = false;
+                }
+                while(send(ComposableBody.builder().build(), !wakeFromPause));
+            } finally {
+                lock.unlock();
+            }
         } catch (BOSHException boshx) {
             dispose(boshx);
+            return;
         }
     }
 
@@ -1306,7 +1401,8 @@ public final class BOSHClient {
      * the default delay is returned.
      * 
      * @return delay in milliseconds that should elapse prior to an
-     *  empty message being sent
+     *  empty message being sent, or -1 if no empty messages should be
+     *  sent.
      */
     private long processPauseRequest(
             final AbstractBody req) {
@@ -1328,7 +1424,7 @@ public final class BOSHClient {
             }
         }
 
-        return getDefaultEmptyRequestDelay();
+        return -1;
     }
 
     /**
