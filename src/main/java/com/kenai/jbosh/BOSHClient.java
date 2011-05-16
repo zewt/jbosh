@@ -295,7 +295,7 @@ public final class BOSHClient {
      * requests and awaiting the response to the pause request, or is actively
      * paused.
      */
-    private boolean sessionPaused = true;
+    private boolean sessionPaused = false;
 
     ///////////////////////////////////////////////////////////////////////////
     // Classes:
@@ -531,10 +531,8 @@ public final class BOSHClient {
                 throw(new BOSHException(
                         "Cannot send message when session is closed"));
             }
-            
-            // If any request is sent while we're paused, we're no longer paused.
-            if(!emptyRequest)
-                sessionPaused = false;
+
+            sessionPaused = isPause(body);
 
             long rid = requestIDSeq.getNextRID();
             ComposableBody request = body;
@@ -561,6 +559,13 @@ public final class BOSHClient {
     }
 
     /**
+     * See {@link #pause(ComposableBody)}.
+     */
+    public boolean pause() throws BOSHException {
+        return pause(ComposableBody.builder().build());
+    }
+
+    /**
      * Attempt to pause the current session.  When supported by the remote
      * connection manager, pausing the session will result in the connection
      * manager closing out all outstanding requests (including the pause
@@ -570,15 +575,16 @@ public final class BOSHClient {
      * exceptional temporary situation during which it will be unable to send
      * requests to the connection manager for a period of time greater than
      * the maximum inactivity period.
-     *
+     * <p>
      * The session will revert back to it's normal, unpaused state when the
      * client sends it's next message.
      *
+     * @param msg message to send with pause request
      * @return {@code true} if the connection manager supports session pausing,
      *  {@code false} if the connection manager does not support session
      *  pausing or if the session has not yet been established
      */
-    public boolean pause() {
+    public boolean pause(final ComposableBody msg) throws BOSHException {
         assertUnlocked();
         lock.lock();
         AttrMaxPause maxPause = null;
@@ -592,16 +598,9 @@ public final class BOSHClient {
                 return false;
             }
 
-            send(ComposableBody.builder()
+            send(msg.rebuild()
                     .setAttribute(Attributes.PAUSE, maxPause.toString())
                     .build(), false);
-
-            // Mark the session as paused.  This will prevent any further empty requests
-            // from being sent.  This must be done after calling send(), as it clears this
-            // flag.
-            sessionPaused = true;
-        } catch (BOSHException boshx) {
-            LOG.log(Level.FINEST, "Could not send pause", boshx);
         } finally {
             lock.unlock();
         }
