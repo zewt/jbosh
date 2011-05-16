@@ -9,7 +9,6 @@ import java.net.URI;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Vector;
@@ -18,8 +17,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.net.SocketFactory;
-
-import com.kenai.jbosh.HTTPSenderInternal.InternalHTTPResponse;
 
 
 /**
