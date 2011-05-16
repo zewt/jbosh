@@ -87,27 +87,17 @@ final class CMSessionParams {
         boolean acking = (aAck != null && aAck.getValue().equals(rid));
 
         return new CMSessionParams(
-            AttrSessionID.createFromString(
-                getRequiredAttribute(resp, Attributes.SID)),
-            AttrWait.createFromString(
-                getRequiredAttribute(resp, Attributes.WAIT)),
-            AttrVersion.createFromString(
-                resp.getAttribute(Attributes.VER)),
-            AttrPolling.createFromString(
-                resp.getAttribute(Attributes.POLLING)),
-            AttrInactivity.createFromString(
-                resp.getAttribute(Attributes.INACTIVITY)),
-            AttrRequests.createFromString(
-                resp.getAttribute(Attributes.REQUESTS)),
-            AttrHold.createFromString(
-                resp.getAttribute(Attributes.HOLD)),
-            AttrAccept.createFromString(
-                resp.getAttribute(Attributes.ACCEPT)),
-            AttrMaxPause.createFromString(
-                resp.getAttribute(Attributes.MAXPAUSE)),
+            AttrSessionID.createFromString(getRequiredAttribute(resp, Attributes.SID)),
+            AttrWait.createFromString(getRequiredAttribute(resp, Attributes.WAIT)),
+            AttrVersion.createFromString(resp.getAttribute(Attributes.VER)),
+            AttrPolling.createFromString(resp.getAttribute(Attributes.POLLING)),
+            AttrInactivity.createFromString(resp.getAttribute(Attributes.INACTIVITY)),
+            AttrRequests.createFromString(resp.getAttribute(Attributes.REQUESTS)),
+            AttrHold.createFromString(resp.getAttribute(Attributes.HOLD)),
+            AttrAccept.createFromString(resp.getAttribute(Attributes.ACCEPT)),
+            AttrMaxPause.createFromString(resp.getAttribute(Attributes.MAXPAUSE)),
             aAck,
-            AttrCharsets.createFromString(
-                resp.getAttribute(Attributes.CHARSETS)),
+            AttrCharsets.createFromString(resp.getAttribute(Attributes.CHARSETS)),
             acking
             );
     }
