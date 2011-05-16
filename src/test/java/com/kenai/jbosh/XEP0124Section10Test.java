@@ -125,12 +125,13 @@ public class XEP0124Section10Test extends AbstractBOSHTest {
             }
         });
 
-        // Initiate a session with a maxpause
+        // Initiate a session with a maxpause.  Enable POLLING, so empty requests
+        // will be sent.
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req)
+                .setAttribute(Attributes.POLLING, "1")
                 .setAttribute(Attributes.MAXPAUSE, "2")
                 .build();
         conn.sendResponse(scr);
@@ -143,17 +144,22 @@ public class XEP0124Section10Test extends AbstractBOSHTest {
         conn = cm.awaitConnection();
         conn.sendResponse(ComposableBody.builder().build());
         session.drain();
-        AbstractBody req = request.getAndSet(null);
+        req = request.getAndSet(null);
         assertEquals(scr.getAttribute(Attributes.MAXPAUSE),
                 req.getAttribute(Attributes.PAUSE));
 
         try {
-            Thread.sleep(1000);
+            // Give the client a chance to send an empty request; this should not
+            // happen.
+            Thread.sleep(1200);
             assertNull(request.get());
             Thread.sleep(1000);
         } catch (InterruptedException intx) {
             fail("Interrupted while waiting");
         }
+
+        // After the second pause and two seconds have elapsed, the empty request
+        // to wake the session from pause should have been sent.
         req = request.get();
         assertNotNull(req);
     }
