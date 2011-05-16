@@ -435,7 +435,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                 while(dataPos < line.length() && (line.charAt(dataPos) == ' ' || line.charAt(dataPos) == '\t'))
                     ++dataPos;
 
-                responseHeaders.put(currentHeader, existingHeader + line.substring(dataPos, line.length()));
+                responseHeaders.put(currentHeader, existingHeader + " " + line.substring(dataPos, line.length()));
                 continue;
             }
             

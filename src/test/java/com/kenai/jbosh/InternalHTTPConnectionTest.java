@@ -84,7 +84,7 @@ public class InternalHTTPConnectionTest {
     /**
      * Check basic InternalHTTPConnection connection and reading responses.
      */
-    @Test
+    @Test(timeout=5000)
     public void testBasic() throws IOException {
         InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
         
@@ -120,7 +120,7 @@ public class InternalHTTPConnectionTest {
      * All errors are reported by waitForNextResponse. Verify that ConnectException
      * is thrown when a connection is refused.
      */
-    @Test(expected=ConnectException.class)
+    @Test(timeout=5000, expected=ConnectException.class)
     public void testConnectionError() throws IOException {
         // Close the socket, since we want the request to fail.
         serverSocket.close();
@@ -136,7 +136,11 @@ public class InternalHTTPConnectionTest {
         conn.waitForNextResponse();
     }
 
-    @Test
+    /**
+     * Test header parsing, including headers spanning multiple lines and repeated
+     * header names.
+     */
+    @Test(timeout=5000)
     public void testHeaderParsing() throws IOException {
         InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
         
@@ -165,14 +169,14 @@ public class InternalHTTPConnectionTest {
 
         // Verify the parsed headers.
         assertEquals(conn.getResponseHeader("Test-Header"), "header");
-        assertEquals(conn.getResponseHeader("Test-Continued-Header"), "data1data2");
+        assertEquals(conn.getResponseHeader("Test-Continued-Header"), "data1 data2");
         assertEquals(conn.getResponseHeader("Test-Combined-Header"), "data3,data4");
     }
 
     /**
      * Check reading responses with no Content-Length.
      */
-    @Test
+    @Test(timeout=5000)
     public void testNoContentLength() throws IOException {
         InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
         
@@ -239,7 +243,7 @@ public class InternalHTTPConnectionTest {
     /**
      * Test reading chunked responses.
      */
-    @Test
+    @Test(timeout=5000)
     public void testChunked() throws IOException {
         InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
         
