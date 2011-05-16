@@ -81,6 +81,14 @@ public abstract class AbstractBOSHTest {
         result.addBOSHClientRequestListener(new BOSHClientRequestListener() {
             public void requestSent(final BOSHMessageEvent event) {
                 LOG.fine("Sending request: " + event.getBody().toXML());
+
+                // A bug somewhere deep in xsocket library causes its HTTP server to drop
+                // requests if they're sent more quickly than they're accepted.  That code
+                // is unmaintainable and unmaintained; it should be replaced.  For now,
+                // slow down to mask the bug; it's not used by anything but the tests.
+                try {
+                    Thread.sleep(50);
+                } catch(InterruptedException e) { /* ignore */ }
             }
         });
         result.addBOSHClientRequestListener(reqValidator);
