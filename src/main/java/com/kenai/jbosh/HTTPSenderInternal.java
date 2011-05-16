@@ -18,10 +18,10 @@ package com.kenai.jbosh;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Vector;
 import java.util.logging.Level;
@@ -115,6 +115,15 @@ final class HTTPSenderInternal implements HTTPSender {
         if (cfg.isCompressionEnabled())
             headers.put("Accept-Encoding", ACCEPT_ENCODING_VAL);
         headers.put("Content-Length", String.valueOf(data.length));
+
+        URI uri = cfg.getURI();
+        String host = uri.getHost();
+        int defaultPort = 80;
+        if(uri.getScheme().equalsIgnoreCase("https"))
+            defaultPort = 443;
+        if(uri.getPort() != defaultPort)
+            host += ":" + uri.getPort();
+        headers.put("Host", host);
 
         // Construct the HTTP request header.
         StringBuilder sb = new StringBuilder();
