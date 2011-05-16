@@ -187,11 +187,12 @@ public class XEP0124Section12Test extends AbstractBOSHTest {
         // Client response to 'requests' attribute value of '1' in CM resp
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req)
                 .setAttribute(Attributes.WAIT, "1")
-                .setAttribute(Attributes.REQUESTS, "1")
-                .setAttribute(Attributes.POLLING, "3")
+                .setAttribute(Attributes.REQUESTS, "2")
+                .setAttribute(Attributes.POLLING, "1")
                 .setAttribute(Attributes.INACTIVITY, "4")
                 .setNamespaceDefinition("foo", "http://127.0.0.1/")
                 .setPayloadXML("<foo:bar/>")
