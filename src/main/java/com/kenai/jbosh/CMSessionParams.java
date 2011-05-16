@@ -93,7 +93,8 @@ final class CMSessionParams {
             AttrPolling.createFromString(resp.getAttribute(Attributes.POLLING)),
             AttrInactivity.createFromString(resp.getAttribute(Attributes.INACTIVITY)),
             AttrRequests.createFromString(resp.getAttribute(Attributes.REQUESTS)),
-            AttrHold.createFromString(resp.getAttribute(Attributes.HOLD)),
+            // hold is only a SHOULD, and the spec doesn't specify what to do if it's omitted.
+            AttrHold.createFromString(resp.getAttribute(Attributes.HOLD, "1")),
             AttrAccept.createFromString(resp.getAttribute(Attributes.ACCEPT)),
             AttrMaxPause.createFromString(resp.getAttribute(Attributes.MAXPAUSE)),
             aAck,
