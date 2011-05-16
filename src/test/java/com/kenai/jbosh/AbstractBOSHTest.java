@@ -133,11 +133,15 @@ public abstract class AbstractBOSHTest {
         String waitStr = creationRequest.getAttribute(Attributes.WAIT);
         String verStr = creationRequest.getAttribute(Attributes.VER);
         String holdStr = creationRequest.getAttribute(Attributes.HOLD);
+
+        // BOSHClient will typically request a higher hold size than 1.  For most tests,
+        // only use hold='1'.  Tests that want to allow more packets to hold will set
+        // this to the desired value manually.
         return ComposableBody.builder()
             .setAttribute(Attributes.SID, "123XYZ")
             .setAttribute(Attributes.WAIT, waitStr)
             .setAttribute(Attributes.VER, verStr)
-            .setAttribute(Attributes.HOLD, holdStr)
+            .setAttribute(Attributes.HOLD, "1")
             .setAttribute(Attributes.INACTIVITY, "3")
             .setAttribute(Attributes.POLLING, "9999999");
     }
