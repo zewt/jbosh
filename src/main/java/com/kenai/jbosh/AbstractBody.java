@@ -72,6 +72,19 @@ public abstract class AbstractBody {
         return attrs.get(attr);
     }
 
+    /**
+     * Get the value of the specified attribute.
+     *
+     * @param attr name of the attribute to retrieve
+     * @param defaultValue the value to return if the attribute is not defiend
+     * @return attribute value, or defaultValue
+     */
+    public final String getAttribute(final BodyQName attr, String defaultValue) {
+        Map<BodyQName, String> attrs = getAttributes();
+        String result = attrs.get(attr);
+        return result != null? result:defaultValue;
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     // Abstract methods:
 
