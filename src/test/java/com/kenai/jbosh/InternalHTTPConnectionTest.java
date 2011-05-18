@@ -28,6 +28,7 @@ import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.AsynchronousCloseException;
+import java.util.Vector;
 
 import javax.net.ServerSocketFactory;
 
@@ -156,6 +157,22 @@ public class InternalHTTPConnectionTest {
         conn.waitForNextResponse();
     }
 
+    /**
+     * Verify that InternalHTTPConnection deterministically joins threads when aborted.
+     */
+    @Test(timeout=5000)
+    public void testThreadShutdown() throws IOException {
+        int threadsBefore = Thread.activeCount();
+        for(int i = 0; i < 50; ++i) {
+            InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
+            conn.abort();
+        }
+        int threadsAfter = Thread.activeCount();
+
+        assertEquals(threadsBefore, threadsAfter);
+    }
+
+    
     /**
      * Test header parsing, including headers spanning multiple lines and repeated
      * header names.
