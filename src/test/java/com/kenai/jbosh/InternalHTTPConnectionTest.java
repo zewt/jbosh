@@ -27,6 +27,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.channels.AsynchronousCloseException;
 
 import javax.net.ServerSocketFactory;
 
@@ -130,6 +131,25 @@ public class InternalHTTPConnectionTest {
         // Send a request.  The request should have failed, so this is a no-op.
         byte[] data = "request data".getBytes("UTF-8");
         conn.sendRequest(data, new Request());
+
+        // Wait for the response.  The connection failed, so ConnectException will be
+        // thrown here.
+        conn.waitForNextResponse();
+    }
+
+    /**
+     * Verify that AsynchronousCloseException is thrown when a connection is aborted.
+     */
+    @Test(timeout=5000, expected=AsynchronousCloseException.class)
+    public void testConnectionAbortError() throws IOException {
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null);
+
+        // Send a request.
+        byte[] data = "request data".getBytes("UTF-8");
+        conn.sendRequest(data, new Request());
+
+        // Abort the connection.
+        conn.abort();
 
         // Wait for the response.  The connection failed, so ConnectException will be
         // thrown here.

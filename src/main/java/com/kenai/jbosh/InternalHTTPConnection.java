@@ -82,30 +82,45 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     public int getRequestsOutstanding() { return outstandingRequests.size(); }
 
     /** Permanently close the connection.  All requests are cancelled, the connection
-     * is closed and all further requests will throw ChannelClosedException. */
+     * is closed and all further responses will throw AsynchronousCloseException. */
     public synchronized void abort() {
-        LOG.log(Level.WARNING, "abort()");
-        socket.close();
+        Queue<T> requestsFailed;
+        synchronized(this) {
+            socket.close();
 
-        // If the request failed, all other requests on the same connection have failed as well.
-        Queue<T> requestsFailed = outstandingRequests;
-        outstandingRequests = new LinkedList<T>();
+            // If the request failed, all other requests on the same connection have failed as well.
+            // Note that we don't clear outstandingRequests; requests may still call waitForNextResponse()
+            // and receive an exception in response.
+            requestsFailed = outstandingRequests;
+
+            responseHeaders = null;
+            responseData = null;
+            responseStatusCode = null;
+        }
+
+        // Don't keep the object locked while we call requestAborted. 
         for(T req: requestsFailed) {
             req.requestAborted();
         }
-
-        responseHeaders = null;
-        responseData = null;
-        responseStatusCode = null;
     }
 
-    /** Wait until the next response is received. */
+    /**
+     * Wait until the next response is received.  At least one request must be pending.
+     *
+     * @throws AsynchronousCloseException if abort has been called on this connection.
+     */
     public T waitForNextResponse() throws IOException {
         T response;
         synchronized(this) {
             response = outstandingRequests.poll();
+
+            // Check this first.  It's always invalid to call waitForNextException when
+            // no requests are outstanding, even if the socket has been closed.
             if(response == null)
                 throw new RuntimeException("No requests are outstanding");
+
+            if(socket.closed)
+                throw new AsynchronousCloseException();
         }
 
         readRequest();
