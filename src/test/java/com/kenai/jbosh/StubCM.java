@@ -103,6 +103,10 @@ public class StubCM {
         return URI.create("http://localhost:" + port + "/");
     }
 
+    public URI getURIHTTPS() {
+        return URI.create("https://localhost:" + port + "/");
+    }
+
     public void dispose() throws Exception {
         list.clear();
         all.clear();

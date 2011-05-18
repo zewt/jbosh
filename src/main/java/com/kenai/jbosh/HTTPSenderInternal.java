@@ -282,9 +282,14 @@ final class HTTPSenderInternal implements HTTPSender {
                 // LOG.log(Level.WARNING, "Starting a new connection");
 
                 SocketFactory socketFactory = null;
-                if(cfg.getURI().getScheme().equals("https")) {
+                if(cfg.getURI().getScheme().equals("http")) {
+                    // Use the supplied SocketFactory, if any.  Otherwise, use the system-provided one.
+                    socketFactory = cfg.getSocketFactoryHTTP();
+                    if(socketFactory == null)
+                        socketFactory = SocketFactory.getDefault();
+                } else if(cfg.getURI().getScheme().equals("https")) {
                     // Use the supplied SSLSocketFactory, if any.  Otherwise, use the system-provided one.
-                    socketFactory = cfg.getSocketFactory();
+                    socketFactory = cfg.getSocketFactoryHTTPS();
                     if(socketFactory == null)
                         socketFactory = SSLSocketFactory.getDefault();
                 }
