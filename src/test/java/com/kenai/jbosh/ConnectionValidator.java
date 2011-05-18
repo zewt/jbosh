@@ -222,10 +222,15 @@ public final class ConnectionValidator implements StubCMListener {
      * @param conn connection to verify
      */
     private static void assertContentType(final StubConnection conn) {
+        // Disabled: this is only a SHOULD, so servers can't require this; specifying
+        // this on every request is a waste of upstream bandwidth, which is severely
+        // limited in many environments.
+/*
         StubRequest req = conn.getRequest();
         assertEquals("Incorrect Content-Type header in request",
                 "text/xml; charset=utf-8",
                 req.getHeader("Content-Type"));
+*/
     }
 
     ///////////////////////////////////////////////////////////////////////////
