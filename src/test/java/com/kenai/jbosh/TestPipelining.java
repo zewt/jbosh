@@ -100,6 +100,44 @@ public class TestPipelining extends AbstractBOSHTest {
     }
 
     /**
+     * After an empty request is sent and responded to, verify that another
+     * empty request is sent.
+     */
+    @Test(timeout=5000)
+    public void testEmptyRequests() throws Exception {
+        // Send session initialization.
+        session.send(ComposableBody.builder().build());
+
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody req = conn.getRequest().getBody();
+
+        // Send a session creation request acknowledging the higher hold size,
+        // and setting POLLING to 0, so no limits are placed on how quickly the
+        // empty requests can be sent.
+        AbstractBody scr = getSessionCreationResponse(req)
+                .setAttribute(Attributes.HOLD, "1")
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
+                .build();
+        conn.sendResponse(scr);
+
+        // We should receive an empty response quickly.
+
+        // Give BOSHClient a chance to send the empty request.
+        Thread.sleep(250);
+
+        // One requests should now be waiting.
+        assertEquals(1, cm.pendingConnectionCount());
+
+        // Read the request, and respond to it.
+        conn = cm.awaitConnection();
+        conn.sendResponse(ComposableBody.builder().build());
+
+        // Another response should arrive quickly.
+        Thread.sleep(250);
+        assertEquals(1, cm.pendingConnectionCount());
+    }
+
+    /**
      * The POLLING value tells how quickly polling may happen: how often a
      * request will be sent when it's known that the response will not be held.
      *

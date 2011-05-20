@@ -1332,6 +1332,9 @@ public final class BOSHClient {
         lock.lock();
 
         try {
+            // Once we're done, allow a new empty request task to be scheduled.
+            emptyRequestFuture = null;
+
             if(!isWorking())
                 return;
 
