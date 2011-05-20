@@ -83,6 +83,7 @@ public class TestPipelining extends AbstractBOSHTest {
                 .setAttribute(Attributes.HOLD, new Integer(hold).toString())
                 .setAttribute(Attributes.POLLING, "0") // enable empty requests
                 .setAttribute(Attributes.REQUESTS, new Integer(hold+1).toString())
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
                 .build();
         conn.sendResponse(scr);
 
@@ -130,6 +131,7 @@ public class TestPipelining extends AbstractBOSHTest {
                 .setAttribute(Attributes.HOLD, new Integer(hold).toString())
                 .setAttribute(Attributes.POLLING, "9999")
                 .setAttribute(Attributes.REQUESTS, new Integer(hold+1).toString())
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
                 .build();
         conn.sendResponse(scr);
 
