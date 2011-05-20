@@ -86,6 +86,22 @@ final class HTTPSenderInternal implements HTTPSender {
             data = body.toXML().getBytes("UTF-8");
         } catch(UnsupportedEncodingException e) { throw new RuntimeException(e); }
 
+        // If cfg is null, destroy() has already been called.  Return an HTTPResponse
+        // that always fails.
+        if (cfg == null) {
+            return new HTTPResponse() {
+                public void abort() { }
+
+                public int getHTTPStatus() throws BOSHException {
+                    throw new BOSHException("Connection was destroyed");
+                }
+
+                public AbstractBody getBody() throws BOSHException {
+                    throw new BOSHException("Connection was destroyed");
+                }
+            };
+        }
+
         String encoding = null;
         if (cfg.isCompressionEnabled() && params != null) {
             AttrAccept accept = params.getAccept();
