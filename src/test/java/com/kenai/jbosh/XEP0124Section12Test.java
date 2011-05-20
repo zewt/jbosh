@@ -54,9 +54,8 @@ public class XEP0124Section12Test extends AbstractBOSHTest {
         // Client response to 'requests' attribute value of '1' in CM resp
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
+                .setAttribute(Attributes.WAIT, "0")
                 .setAttribute(Attributes.REQUESTS, "1")
                 .build();
         conn.sendResponse(scr);
@@ -144,9 +143,9 @@ public class XEP0124Section12Test extends AbstractBOSHTest {
         // Client response to 'requests' attribute value of '1' in CM resp
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
+                .setAttribute(Attributes.HOLD, "0")
+                .setAttribute(Attributes.WAIT, "0")
                 .setAttribute(Attributes.REQUESTS, "1")
                 .setAttribute(Attributes.POLLING, "1")
                 .build();
@@ -188,6 +187,7 @@ public class XEP0124Section12Test extends AbstractBOSHTest {
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
 
+        // Enable empty messages for this test.
         AbstractBody req = conn.getRequest().getBody();
         AbstractBody scr = getSessionCreationResponse(req)
                 .setAttribute(Attributes.WAIT, "0")
