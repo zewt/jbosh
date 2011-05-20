@@ -190,10 +190,12 @@ public class XEP0124Section12Test extends AbstractBOSHTest {
 
         AbstractBody req = conn.getRequest().getBody();
         AbstractBody scr = getSessionCreationResponse(req)
-                .setAttribute(Attributes.WAIT, "1")
+                .setAttribute(Attributes.WAIT, "0")
                 .setAttribute(Attributes.REQUESTS, "2")
                 .setAttribute(Attributes.POLLING, "1")
+                .setAttribute(Attributes.HOLD, "0")
                 .setAttribute(Attributes.INACTIVITY, "4")
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
                 .setNamespaceDefinition("foo", "http://127.0.0.1/")
                 .setPayloadXML("<foo:bar/>")
                 .build();

@@ -128,8 +128,9 @@ public abstract class AbstractBOSHTest {
      * Given a session creation request, return the default session creation response.
      */
     ComposableBody.Builder getSessionCreationResponse(AbstractBody creationRequest) {
-        // Set polling to a very large value, to prevent empty requests from being
-        // sent nondeterministically during tests.
+        // Enable DISABLE_EMPTY_MESSAGES, to prevent empty requests from being
+        // sent nondeterministically during tests.  Empty request testing will
+        // explicitly clear this attribute.
         String waitStr = creationRequest.getAttribute(Attributes.WAIT);
         String verStr = creationRequest.getAttribute(Attributes.VER);
         String holdStr = creationRequest.getAttribute(Attributes.HOLD);
@@ -143,7 +144,9 @@ public abstract class AbstractBOSHTest {
             .setAttribute(Attributes.VER, verStr)
             .setAttribute(Attributes.HOLD, "1")
             .setAttribute(Attributes.INACTIVITY, "3")
-            .setAttribute(Attributes.POLLING, "9999999");
+            .setNamespaceDefinition(Attributes.DISABLE_EMPTY_MESSAGES.getPrefix(),
+                    Attributes.DISABLE_EMPTY_MESSAGES.getNamespaceURI())
+            .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, "1");
     }
 
     /**

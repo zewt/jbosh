@@ -47,6 +47,8 @@ final class CMSessionParams {
 
     private final boolean ackingRequests;
 
+    private final boolean disableEmptyRequests;
+
     /**
      * Prevent direct construction.
      */
@@ -62,7 +64,8 @@ final class CMSessionParams {
             final AttrMaxPause aMaxPause,
             final AttrAck aAck,
             final AttrCharsets aCharsets,
-            final boolean amAckingRequests) {
+            final boolean amAckingRequests,
+            final boolean aDisableEmptyRequests) {
         sid = aSid;
         wait = aWait;
         ver = aVer;
@@ -75,6 +78,7 @@ final class CMSessionParams {
         ack = aAck;
         charsets = aCharsets;
         ackingRequests = amAckingRequests;
+        disableEmptyRequests = aDisableEmptyRequests;
     }
 
     static CMSessionParams fromSessionInit(
@@ -85,6 +89,10 @@ final class CMSessionParams {
                 resp.getAttribute(Attributes.ACK));
         String rid = req.getAttribute(Attributes.RID);
         boolean acking = (aAck != null && aAck.getValue().equals(rid));
+
+        IntegerAttr aDisableEmptyRequests = IntegerAttr.createFromString(
+                resp.getAttribute(Attributes.DISABLE_EMPTY_MESSAGES, "0"), 0);
+        boolean disableEmptyRequests = (aDisableEmptyRequests.getValue() != 0);
 
         return new CMSessionParams(
             AttrSessionID.createFromString(getRequiredAttribute(resp, Attributes.SID)),
@@ -99,7 +107,8 @@ final class CMSessionParams {
             AttrMaxPause.createFromString(resp.getAttribute(Attributes.MAXPAUSE)),
             aAck,
             AttrCharsets.createFromString(resp.getAttribute(Attributes.CHARSETS)),
-            acking
+            acking,
+            disableEmptyRequests
             );
     }
 
@@ -165,4 +174,7 @@ final class CMSessionParams {
         return ackingRequests;
     }
 
+    boolean emptyRequestsDisabled() {
+        return disableEmptyRequests;
+    }
 }

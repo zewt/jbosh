@@ -1254,6 +1254,10 @@ public final class BOSHClient {
         if(cmParams == null)
             return -1;
 
+        // If empty requests are disabled, don't send them.  This is only used for testing.
+        if(cmParams.emptyRequestsDisabled())
+            return -1;
+
         // When not polling, we're under section XEP-0124 sec11, not sec12.  Empty requests
         // will never result in reaching the 'requests' value.  Send the next empty request
         // immediately.
