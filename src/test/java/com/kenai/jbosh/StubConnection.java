@@ -39,6 +39,7 @@ public class StubConnection {
     private final StubRequest req;
     private final AtomicReference<StubResponse> resp =
             new AtomicReference<StubResponse>();
+    private boolean closeConnection = false;
 
     ///////////////////////////////////////////////////////////////////////////
     // Constructor:
@@ -62,6 +63,14 @@ public class StubConnection {
 
     public void sendResponse(final AbstractBody respBody) throws IOException {
         sendResponseWithStatus(respBody, 200);
+    }
+
+    /** Close the connection without sending a response. */
+    public void closeConnection() {
+        synchronized(this) {
+            closeConnection = true;
+            notifyAll();
+        }
     }
 
     public void sendResponseWithStatus(
@@ -128,7 +137,7 @@ public class StubConnection {
 
     public void awaitResponse() {
         synchronized(this) {
-            while (resp.get() == null) {
+            while (resp.get() == null && !closeConnection) {
                 try {
                     wait();
                 } catch (InterruptedException intx) {
@@ -141,6 +150,11 @@ public class StubConnection {
     public void executeResponse() throws IOException {
         awaitResponse();
         HttpResponse hr = httpResp.getAndSet(null);
+        if (closeConnection) {
+            exchange.destroy();
+            return;
+        }
+
         if (hr == null) {
             // Already executed the response
             return;

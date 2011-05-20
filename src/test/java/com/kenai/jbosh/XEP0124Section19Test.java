@@ -130,13 +130,11 @@ public class XEP0124Section19Test extends AbstractBOSHTest {
             StubConnection conn = cm.awaitConnection();
             AbstractBody req = conn.getRequest().getBody();
             String rid = req.getAttribute(Attributes.RID);
-            conn.sendResponse(ComposableBody.builder()
-                    .setAttribute(Attributes.TYPE, "terminate")
-                    .setAttribute(Attributes.CONDITION, "item-not-found")
-                    .build());
             if (!observed.add(Long.valueOf(rid))) {
                 repeats++;
             }
+
+            conn.closeConnection();
             sess.close();
         }
         LOG.info("Repeated initial RID " + repeats + " time(s)");
