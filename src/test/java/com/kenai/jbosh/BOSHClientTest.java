@@ -194,10 +194,8 @@ public class BOSHClientTest extends AbstractBOSHTest {
         // Session creation
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req).build();
         conn.sendResponse(scr);
         session.drain();
         assertEquals(1, events.size());
@@ -233,13 +231,12 @@ public class BOSHClientTest extends AbstractBOSHTest {
     public void concurrentSends() throws Exception {
         logTestStart();
 
-        // Session creation
+        // Session creation.  Disable inactivity checking for this test.
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
+            .setAttribute(Attributes.INACTIVITY, null)
+            .build();
         conn.sendResponse(scr);
         session.drain();
 
