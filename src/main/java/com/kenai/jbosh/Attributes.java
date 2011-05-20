@@ -33,6 +33,15 @@ final class Attributes {
         super();
     }
 
+    /**
+     * This session creation attribute disables sending of empty messages entirely
+     * when set to "1".  This is intended for testing purposes only.
+     */
+    static final BodyQName DISABLE_EMPTY_MESSAGES = BodyQName.createWithPrefix(
+            "http://jbosh.kenai.com",
+            "disable-empty-messages",
+            "jbosh");
+
     static final BodyQName ACCEPT = BodyQName.createBOSH("accept");
     static final BodyQName AUTHID = BodyQName.createBOSH("authid");
     static final BodyQName ACK = BodyQName.createBOSH("ack");
