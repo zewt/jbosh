@@ -81,7 +81,6 @@ public class TestPipelining extends AbstractBOSHTest {
         // empty requests can be sent.
         AbstractBody scr = getSessionCreationResponse(req)
                 .setAttribute(Attributes.HOLD, new Integer(hold).toString())
-                .setAttribute(Attributes.POLLING, "0") // enable empty requests
                 .setAttribute(Attributes.REQUESTS, new Integer(hold+1).toString())
                 .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
                 .build();
