@@ -1244,6 +1244,12 @@ public final class BOSHClient {
         if(cmParams == null)
             return -1;
 
+        // When not polling, we're under section XEP-0124 sec11, not sec12.  Empty requests
+        // will never result in reaching the 'requests' value.  Send the next empty request
+        // immediately.
+        if(cmParams.getHold().getValue() > 0)
+            return 0;
+
         // Figure out how long we should wait before sending an empty request
         AttrPolling polling = cmParams.getPollingInterval();
         long delay;

@@ -97,4 +97,46 @@ public class TestPipelining extends AbstractBOSHTest {
         // 'hold' requests should now be waiting.
         assertEquals(hold, cm.pendingConnectionCount());
     }
+
+    /**
+     * The POLLING value tells how quickly polling may happen: how often a
+     * request will be sent when it's known that the response will not be held.
+     *
+     * Specifically: the polling rule in section 11 only applies to non-held
+     * requests; section 12 is ambiguous but clearly seems intended to apply only
+     * to polling sessions.
+     *
+     * Make sure that no matter how high POLLING is set, so long as we're in
+     * a non-polling session (hold > 0) we always send empty requests immediately.
+     * Some servers set a high POLLING value (Prosidy uses 5 seconds), so if we
+     * use the polling value when not polling, everything slows to a crawl.
+     */
+    @Test(timeout=5000)
+    public void testEmptyRequestsHighPolling() throws Exception {
+        // Send session initialization.
+        session.send(ComposableBody.builder().build());
+
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody req = conn.getRequest().getBody();
+
+        // This test only makes sense if BOSHClient supports pipelining, which
+        // is indicated by @hold being greater than 1.
+        int hold = Integer.parseInt(req.getAttribute(Attributes.HOLD));
+        assertTrue("Receive windowing is not enabled", hold > 1);
+
+        // Set a high POLLING value.  This should have no effect on non-polling
+        // connections.
+        AbstractBody scr = getSessionCreationResponse(req)
+                .setAttribute(Attributes.HOLD, new Integer(hold).toString())
+                .setAttribute(Attributes.POLLING, "9999")
+                .setAttribute(Attributes.REQUESTS, new Integer(hold+1).toString())
+                .build();
+        conn.sendResponse(scr);
+
+        // The POLLING value should not affect sending empty requests when we're
+        // not a polling session.  Empty requests should be sent immediately in
+        // response to the session creation response.
+        Thread.sleep(250);
+        assertEquals(hold, cm.pendingConnectionCount());
+    }
 };
