@@ -83,7 +83,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
     /** Permanently close the connection.  All requests are cancelled, the connection
      * is closed and all further responses will throw AsynchronousCloseException. */
-    public synchronized void abort() {
+    public void abort() {
         Queue<T> requestsFailed;
         synchronized(this) {
             socket.close();
