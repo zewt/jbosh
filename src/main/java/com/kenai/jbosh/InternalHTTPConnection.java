@@ -50,12 +50,22 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     private int inputBufferAvail = 0;
     private int inputBufferPosition = 0;
 
-    /* All response* fields are only set when a response is received. */ 
-    private HashMap<String, String> responseHeaders = null;
-    private byte[] responseData = null;
-    private Integer responseStatusCode = null;
-    private int responseMajorVersion;
-    private int responseMinorVersion; 
+    /* responseData is set when a response is received.  This object must be locked to
+     * access responseData. */
+    ResponseData responseData = null;
+    static class ResponseData {
+        HashMap<String, String> responseHeaders = null;
+        byte[] data = null;
+        Integer statusCode = null;
+        int majorVersion;
+        int minorVersion;
+
+        String getResponseHeader(String key) {
+            key = key.toLowerCase();
+            String value = responseHeaders.get(key);
+            return value != null? value:"";
+        }
+    };
 
     /** Prepare to connect to the scheme, host and port specified in uri.  The
      * other fields of uri are unused. */
@@ -93,9 +103,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             // and receive an exception in response.
             requestsFailed = outstandingRequests;
 
-            responseHeaders = null;
             responseData = null;
-            responseStatusCode = null;
         }
 
         // Don't keep the object locked while we call requestAborted. 
@@ -130,25 +138,23 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     
     /** Return the value of a response header from the last completed request.  If the
      * header wasn't received, return "". */
-    public String getResponseHeader(String key) {
+    public synchronized String getResponseHeader(String key) {
         assertResponseReceived();
-        key = key.toLowerCase();
-        String value = responseHeaders.get(key);
-        return value != null? value:"";
+        return responseData.getResponseHeader(key);
     }
-
+    
     /** Return the body from the last completed request. */
-    public byte[] getData() { assertResponseReceived(); return responseData;}
+    public synchronized byte[] getData() { assertResponseReceived(); return responseData.data; }
     /** Return the status code from the last completed request. */
-    public int getStatusCode() { assertResponseReceived(); return responseStatusCode; }
+    public synchronized int getStatusCode() { assertResponseReceived(); return responseData.statusCode; }
     /** Return the major HTTP version from the last completed request. */ 
-    public int getResponseMajorVersion() { assertResponseReceived(); return responseMajorVersion; }
+    public synchronized int getResponseMajorVersion() { assertResponseReceived(); return responseData.majorVersion; }
     /** Return the minor HTTP version from the last completed request. */ 
-    public int getResponseMinorVersion() { assertResponseReceived(); return responseMinorVersion; }
+    public synchronized int getResponseMinorVersion() { assertResponseReceived(); return responseData.minorVersion; }
 
     /** getResponse* calls can only be made after a response has been received. */
     private void assertResponseReceived() { 
-        if(responseStatusCode == null)
+        if(responseData == null)
             throw new RuntimeException("getStatusCode called before a successful call to waitForNextResponse");
     }
     
@@ -214,12 +220,13 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
         // The HTTP body starts at bodyStartPos; we may not have the entire response
         // body.  Parse HTTP headers.
-        parseResponseHeaders(headers);
+        ResponseData response = new ResponseData();
+        parseResponseHeaders(headers, response);
                 
         // See if we have a Content-Length header.
         int contentLength = -1; 
         try {
-            String value = getResponseHeader("Content-Length");
+            String value = response.getResponseHeader("Content-Length");
             if(value.length() > 0)
                 contentLength = Integer.parseInt(value);
         } catch(NumberFormatException e) {
@@ -228,20 +235,25 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
         
         // We know the amount of data in the response body; read it.
         if(contentLength != -1) {
-            responseData = new byte[contentLength];
-            readDataBlocking(responseData, contentLength, false);
-        } else if(getResponseHeader("Transfer-Encoding").equals("chunked")) {
-            responseData = readChunkedBlocking();
+            response.data = new byte[contentLength];
+            readDataBlocking(response.data, contentLength, false);
+        } else if(response.getResponseHeader("Transfer-Encoding").equals("chunked")) {
+            response.data = readChunkedBlocking();
         } else {
             // If we don't get a length and we're not chunked, then read data until the
             // stream closes.  This is a degenerate fallback and should only happen for
             // badly broken proxies; in this mode we can't tell if a complete file is
             // received.  If this happens, force the protocol version to 1.0; this ensures
             // keepalives aren't used.
-            responseMajorVersion = 1;
-            responseMinorVersion = 0; 
+            response.majorVersion = 1;
+            response.minorVersion = 0; 
 
-            responseData = readUntilEOF();
+            response.data = readUntilEOF();
+        }
+
+        // We have the whole request, so update responseData atomically.
+        synchronized(this) {
+            responseData = response;
         }
     }
 
@@ -401,8 +413,8 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
         return totalBytesRead;
     }
     
-    private void parseResponseHeaders(String headers) throws IOException {
-        responseHeaders = new HashMap<String, String>();
+    private void parseResponseHeaders(String headers, ResponseData data) throws IOException {
+        data.responseHeaders = new HashMap<String, String>();
         
         String[] lines = headers.split("\n");
         
@@ -429,9 +441,9 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                 assert(statusCodePos != -1); // verified above
                 ++statusCodePos; // skip the space
                 
-                responseMajorVersion = Integer.parseInt(line.substring(5, decimalPos));
-                responseMinorVersion = Integer.parseInt(line.substring(decimalPos+1, statusCodePos-1));
-                responseStatusCode = Integer.parseInt(line.substring(statusCodePos, statusCodePos+3));
+                data.majorVersion = Integer.parseInt(line.substring(5, decimalPos));
+                data.minorVersion = Integer.parseInt(line.substring(decimalPos+1, statusCodePos-1));
+                data.statusCode = Integer.parseInt(line.substring(statusCodePos, statusCodePos+3));
 
                 firstLine = false;
                 continue;
@@ -442,7 +454,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                 if(currentHeader == null)
                     throw new IOException("Invalid response header (first line is a continuation)");
 
-                String existingHeader = responseHeaders.get(currentHeader);
+                String existingHeader = data.responseHeaders.get(currentHeader);
                 assert(existingHeader != null);
 
                 // Skip leading whitespace. 
@@ -450,7 +462,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
                 while(dataPos < line.length() && (line.charAt(dataPos) == ' ' || line.charAt(dataPos) == '\t'))
                     ++dataPos;
 
-                responseHeaders.put(currentHeader, existingHeader + " " + line.substring(dataPos, line.length()));
+                data.responseHeaders.put(currentHeader, existingHeader + " " + line.substring(dataPos, line.length()));
                 continue;
             }
             
@@ -472,11 +484,11 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             
             // If we receive the same header twice, concatenate them as a comma-
             // separated string (RFC2616 sec4.2).
-            String existingHeader = responseHeaders.get(key);
+            String existingHeader = data.responseHeaders.get(key);
             if(existingHeader != null)
-                responseHeaders.put(key, existingHeader + "," + value);
+                data.responseHeaders.put(key, existingHeader + "," + value);
             else
-                responseHeaders.put(key, value);
+                data.responseHeaders.put(key, value);
         }
     }
 };
