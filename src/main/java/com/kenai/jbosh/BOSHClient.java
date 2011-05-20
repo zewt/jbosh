@@ -515,9 +515,17 @@ public final class BOSHClient {
                 if (cmParams == null)
                     return false;
 
+                int wantedExchanges;
+                if (cmParams.getWait().getValue() == 0 || cmParams.getHold().getValue() == 0) {
+                    // This is a polling session.
+                    wantedExchanges = 1;
+                } else {
+                    wantedExchanges = cmParams.getHold().getValue();
+                }
+
                 // If we already have enough exchanges in the air, don't send
                 // an empty request.
-                int exchangesNeeded = cmParams.getHold().getValue() - exchanges.size();
+                int exchangesNeeded = wantedExchanges - exchanges.size();
                 if (exchangesNeeded <= 0)
                     return false;
 
