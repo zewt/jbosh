@@ -50,16 +50,20 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     private int inputBufferAvail = 0;
     private int inputBufferPosition = 0;
 
-    /* responseData is set when a response is received.  This object must be locked to
-     * access responseData. */
-    ResponseData responseData = null;
-    static class ResponseData {
-        HashMap<String, String> responseHeaders = null;
-        byte[] data = null;
-        Integer statusCode = null;
-        int majorVersion;
-        int minorVersion;
+    public class ResponseData {
+        // Once this object is returned to the caller, it owns it.  Don't waste
+        // code with getters for everything.
+        public HashMap<String, String> responseHeaders = null;
+        public byte[] data = null;
+        public Integer statusCode = null;
+        public int majorVersion;
+        public int minorVersion;
+        public T request;
 
+        /**
+         * Return the value of the requested response header, or "" if the header
+         * wasn't present in the response.
+         */
         String getResponseHeader(String key) {
             key = key.toLowerCase();
             String value = responseHeaders.get(key);
@@ -102,8 +106,6 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             // Note that we don't clear outstandingRequests; requests may still call waitForNextResponse()
             // and receive an exception in response.
             requestsFailed = outstandingRequests;
-
-            responseData = null;
         }
 
         // Don't keep the object locked while we call requestAborted. 
@@ -117,47 +119,25 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
      *
      * @throws AsynchronousCloseException if abort has been called on this connection.
      */
-    public T waitForNextResponse() throws IOException {
-        T response;
+    public ResponseData waitForNextResponse() throws IOException {
+        T request;
         synchronized(this) {
-            response = outstandingRequests.poll();
+            request = outstandingRequests.poll();
 
             // Check this first.  It's always invalid to call waitForNextException when
             // no requests are outstanding, even if the socket has been closed.
-            if(response == null)
+            if(request == null)
                 throw new RuntimeException("No requests are outstanding");
 
             if(socket.closed)
                 throw new AsynchronousCloseException();
         }
 
-        readRequest();
+        ResponseData response = readRequest();
+        response.request = request;
         return response;
     }
 
-    
-    /** Return the value of a response header from the last completed request.  If the
-     * header wasn't received, return "". */
-    public synchronized String getResponseHeader(String key) {
-        assertResponseReceived();
-        return responseData.getResponseHeader(key);
-    }
-    
-    /** Return the body from the last completed request. */
-    public synchronized byte[] getData() { assertResponseReceived(); return responseData.data; }
-    /** Return the status code from the last completed request. */
-    public synchronized int getStatusCode() { assertResponseReceived(); return responseData.statusCode; }
-    /** Return the major HTTP version from the last completed request. */ 
-    public synchronized int getResponseMajorVersion() { assertResponseReceived(); return responseData.majorVersion; }
-    /** Return the minor HTTP version from the last completed request. */ 
-    public synchronized int getResponseMinorVersion() { assertResponseReceived(); return responseData.minorVersion; }
-
-    /** getResponse* calls can only be made after a response has been received. */
-    private void assertResponseReceived() { 
-        if(responseData == null)
-            throw new RuntimeException("getStatusCode called before a successful call to waitForNextResponse");
-    }
-    
     // This is silly: there seems to be no standard method to do direct,
     // untranslated conversions between byte[] arrays and Strings; Java defines
     // no standard charset for this, and the methods not taking a charset are
@@ -182,7 +162,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
         return true;
     }
     
-    private void readRequest() throws IOException {
+    private ResponseData readRequest() throws IOException {
         int lastSearchPos = 0;
         String headers = null;
         while(true) {
@@ -251,10 +231,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             response.data = readUntilEOF();
         }
 
-        // We have the whole request, so update responseData atomically.
-        synchronized(this) {
-            responseData = response;
-        }
+        return response;
     }
 
     /** Read an entire chunked response. */

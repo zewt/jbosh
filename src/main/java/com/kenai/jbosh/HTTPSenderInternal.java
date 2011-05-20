@@ -402,14 +402,15 @@ final class HTTPSenderInternal implements HTTPSender {
 
             // At this point, we can safely access connection's methods, which are threadsafe,
             // but we can't access conn.
+            InternalHTTPConnection.ResponseData response;
             try {
-                InternalHTTPResponse resp = connection.waitForNextResponse();
-                if(resp != this)
+                response = connection.waitForNextResponse();
+                if(response.request != this)
                     throw new RuntimeException("Received a response that wasn't for us");
 
-                byte[] data = connection.getData();
+                byte[] data = response.data;
 
-                String encoding = connection.getResponseHeader("Content-Encoding");
+                String encoding = response.getResponseHeader("Content-Encoding");
                 if (ZLIBCodec.getID().equalsIgnoreCase(encoding))
                     data = ZLIBCodec.decode(data);
                 else if (GZIPCodec.getID().equalsIgnoreCase(encoding))
@@ -418,7 +419,7 @@ final class HTTPSenderInternal implements HTTPSender {
                 String bodyData = new String(data, "UTF-8");
 
                 body = StaticBody.fromString(bodyData);
-                statusCode = connection.getStatusCode();
+                statusCode = response.statusCode;
             } catch (IOException e) {
                 throw abortWithError(new BOSHException("Could not obtain response", e));
             }
@@ -426,9 +427,9 @@ final class HTTPSenderInternal implements HTTPSender {
             // After a response, detect whether keepalives are supported.  Don't support keepalives
             // for HTTP/1.0 servers; there shouldn't be any, and we'd have to handle max keepalives
             // to handle it.
-            if(connection.getResponseMajorVersion() == 1 && connection.getResponseMinorVersion() == 0)
+            if(response.majorVersion == 1 && response.minorVersion == 0)
                 supportsKeepAlive = false;
-            else if(connection.getResponseHeader("Connection").equalsIgnoreCase("close"))
+            else if(response.getResponseHeader("Connection").equalsIgnoreCase("close"))
                 supportsKeepAlive = false;
             else
                 supportsKeepAlive = true;

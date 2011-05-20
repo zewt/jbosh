@@ -36,6 +36,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.kenai.jbosh.InternalHTTPConnection.ResponseData;
+
 public class InternalHTTPConnectionTest {
     public InternalHTTPConnectionTest() {} 
     
@@ -110,11 +112,10 @@ public class InternalHTTPConnectionTest {
         serverOutput.write(response.getBytes("UTF-8"));
 
         // Wait for the complete response.
-        conn.waitForNextResponse();
+        InternalHTTPConnection<Request>.ResponseData responseData = conn.waitForNextResponse();
         
         // Verify the response.
-        byte[] responseData = conn.getData();
-        String responseDataString = new String(responseData, "UTF-8");
+        String responseDataString = new String(responseData.data, "UTF-8");
         assertEquals(responseDataString, "response data");
     }
 
@@ -202,12 +203,12 @@ public class InternalHTTPConnectionTest {
             "Test-Combined-Header: data4\r\n" +
             "\r\n";
         serverOutput.write(response.getBytes("UTF-8"));
-        conn.waitForNextResponse();
+        InternalHTTPConnection<Request>.ResponseData responseData = conn.waitForNextResponse();
 
         // Verify the parsed headers.
-        assertEquals(conn.getResponseHeader("Test-Header"), "header");
-        assertEquals(conn.getResponseHeader("Test-Continued-Header"), "data1 data2");
-        assertEquals(conn.getResponseHeader("Test-Combined-Header"), "data3,data4");
+        assertEquals(responseData.getResponseHeader("Test-Header"), "header");
+        assertEquals(responseData.getResponseHeader("Test-Continued-Header"), "data1 data2");
+        assertEquals(responseData.getResponseHeader("Test-Combined-Header"), "data3,data4");
     }
 
     /**
@@ -237,11 +238,10 @@ public class InternalHTTPConnectionTest {
         serverOutput.close();
 
         // Wait for the complete response.
-        conn.waitForNextResponse();
+        InternalHTTPConnection<Request>.ResponseData responseData = conn.waitForNextResponse();
         
         // Verify the response.
-        byte[] responseData = conn.getData();
-        String responseDataString = new String(responseData, "UTF-8");
+        String responseDataString = new String(responseData.data, "UTF-8");
         assertEquals(responseDataString, "response data");
     }
 
@@ -308,11 +308,10 @@ public class InternalHTTPConnectionTest {
         serverOutput.close();
 
         // Wait for the complete response.
-        conn.waitForNextResponse();
+        InternalHTTPConnection<Request>.ResponseData responseData = conn.waitForNextResponse();
         
         // Verify the response.
-        byte[] responseData = conn.getData();
-        String responseDataString = new String(responseData, "UTF-8");
+        String responseDataString = new String(responseData.data, "UTF-8");
         assertEquals(responseDataString, "response data");
     }
 };
