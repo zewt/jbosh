@@ -83,6 +83,27 @@ public class BOSHClientTest extends AbstractBOSHTest {
         assertFalse(event.isError());
     }
 
+    /**
+     * Test closing BOSHClient while httpSender is waiting for a DNS response.
+     */
+    // XXX
+
+    /**
+     * Test closing BOSHClient while httpSender is waiting for a server connection
+     * to be established.
+     */
+    // XXX
+
+    /**
+     * Test closing BOSHClient while httpSender is waiting for a response to a packet.
+     */
+    @Test(timeout=5000)
+    public void testCloseDuringRead() throws Exception {
+        // Send session initialization.
+        session.send(ComposableBody.builder().build());
+        session.close();
+    }
+
     /** This SocketFactory tracks whether it has been used to instantiate a Socket. */
     static private class TestSocketFactory extends SocketFactory {
         public boolean wasUsed = false;

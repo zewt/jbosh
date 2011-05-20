@@ -783,11 +783,13 @@ public final class BOSHClient {
             lock.unlock();
         }
 
+        // Shut down the sender.  This will cause the thread to exit.
+        httpSender.destroy();
+
         if(thread != null) {
             Helpers.joinThreadUninterruptible(thread);
         }
         
-        httpSender.destroy();
         schedExec.shutdownNow();
     }
 
