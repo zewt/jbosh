@@ -63,7 +63,7 @@ public class TestPipelining extends AbstractBOSHTest {
      * responses the server can send to the client without waiting for a
      * new empty request.  This is analogous to the receive window for TCP.
      */
-    // @Test
+    @Test
     public void testReceiveWindow() throws Exception {
         // Send session initialization.
         session.send(ComposableBody.builder().build());
