@@ -151,6 +151,10 @@ final class HTTPSenderInternal implements HTTPSender {
 
     /** The given response just completed. */
     synchronized void requestCompleted(InternalHTTPResponse response, boolean success) {
+        // If we've been destroyed, do nothing.
+        if(connections == null)
+            return;
+
         LOG.log(Level.WARNING, "Packet completed (" + (success? "success":"fail") + ")");
 
         // Take the connection from the request;
