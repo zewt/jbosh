@@ -1169,15 +1169,7 @@ public final class BOSHClient {
             }
             
             if (isRecoverableBindingCondition(body)) {
-                // Retransmit outstanding requests
-                if (toResend == null) {
-                    toResend = new ArrayList<HTTPExchange>(exchanges.size());
-                }
-                for (HTTPExchange exchange : exchanges) {
-                    HTTPExchange resendExch =
-                            new HTTPExchange(exchange.getRequest());
-                    toResend.add(resendExch);
-                }
+                toResend = resendOutstandingRequests();
             } else {
                 // Process message as normal
                 processRequestAcknowledgements(req, body);
@@ -1581,6 +1573,31 @@ public final class BOSHClient {
         // Resend the missing request
         ArrayList<HTTPExchange> toResend = new ArrayList<HTTPExchange>();
         toResend.add(new HTTPExchange(req));
+        return toResend;
+    }
+
+    /**
+     * Abort all outstanding exchanges, returning new exchanges for retransmission.
+     *
+     * @return list of exchanges to retransmit
+     */
+    private ArrayList<HTTPExchange> resendOutstandingRequests() {
+        assertLocked();
+
+        ArrayList<HTTPExchange> toResend = new ArrayList<HTTPExchange>();
+        for (HTTPExchange exchange : exchanges) {
+            HTTPExchange resendExch =
+                    new HTTPExchange(exchange.getRequest());
+            toResend.add(resendExch);
+
+            exchange.getHTTPResponse().abort();
+        }
+
+        // Clear the exchanges that we're resending.
+        exchanges.clear();
+        drained.signalAll();
+        notFull.signalAll();
+
         return toResend;
     }
 
