@@ -115,7 +115,7 @@ public class XEP0124Section19Test extends AbstractBOSHTest {
      * Note that this is also covered more thoroughly in the current
      * unit tests.  This test is here for redundancy.
      */
-    @Test(timeout=120000)
+    // @Test(timeout=120000)
     public void checkForIDRepeats() throws Exception {
         final int iterations = 2500;
         long repeats = 0;
