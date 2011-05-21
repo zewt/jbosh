@@ -235,9 +235,7 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
         // Initiate a new session
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = this.getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.REQUESTS, "3")
                 .build();
         conn.sendResponse(scr);
