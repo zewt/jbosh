@@ -16,6 +16,7 @@
 
 package com.kenai.jbosh;
 
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
@@ -241,24 +242,6 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
         conn.sendResponse(scr);
         session.drain();
 
-        /*
-         * For testing purposes, try to ensure that the retransmitted
-         * messages arrive in the intended order.  Without this, the
-         * race condition becomes close enough to notice.  In
-         * production, the CM would normally know how to respond to
-         * out of order request receipt.
-         */
-        session.addBOSHClientRequestListener(new BOSHClientRequestListener() {
-            public void requestSent(BOSHMessageEvent event) {
-                // Add a delay to enforce intended message ordering
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException intx) {
-                    // Ignore
-                }
-            }
-        });
-
         // Send a couple requests
         session.send(ComposableBody.builder()
                 .setNamespaceDefinition("test", testURI)
@@ -271,12 +254,25 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
                 .build());
         StubConnection conn2 = cm.awaitConnection();
 
-        // Dump an arbitrary response for the second connection
+        // Send an arbitrary response for the second connection
         String expected2 = conn2.getRequest().getBody().toXML();
         conn2.sendResponse(ComposableBody.builder()
                 .setNamespaceDefinition("test", testURI)
                 .setAttribute(ref, "Resp2")
                 .build());
+
+        // When we send the response below, the requests will be resent.  Verify
+        // from a listener that the retransmissions are sent in the correct order.
+        final ArrayList<String> orderedResends = new ArrayList<String>();
+        session.addBOSHClientRequestListener(new BOSHClientRequestListener() {
+            public void requestSent(BOSHMessageEvent event) {
+                synchronized(orderedResends) {
+                    String actual = event.getBody().toXML();
+                    orderedResends.add(actual);
+                    orderedResends.notify();
+                }
+            }
+        });
 
         // Now respond to the first request with a recoverable error
         String expected1 = conn1.getRequest().getBody().toXML();
@@ -295,7 +291,6 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
                 .setNamespaceDefinition("test", testURI)
                 .setAttribute(ref, "Resp3")
                 .build());
-        assertEquals(expected1, actual1);
 
         // Get msg 2 duplicate
         conn = cm.awaitConnection();
@@ -304,7 +299,26 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
                 .setNamespaceDefinition("test", testURI)
                 .setAttribute(ref, "Resp4")
                 .build());
-        assertEquals(expected2, actual2);
+
+        synchronized(orderedResends) {
+            while(orderedResends.size() < 2) {
+                orderedResends.wait();
+            }
+        }
+
+        // Check that the resends were sent out in the correct order.
+        assertEquals(expected1, orderedResends.get(0));
+        assertEquals(expected2, orderedResends.get(1));
+
+        // Check that the CM received the resends, in either order.  In order
+        // to verify ordering here, we'd need to enable pipelining in StubCM,
+        // so the resends aren't sent in separate connections.
+        if(!(expected1.equals(actual1) && expected2.equals(actual2)) &&
+           !(expected1.equals(actual2) && expected2.equals(actual1))) {
+            fail("Expected:\n" + expected1 + "\nand\n" + expected2 +
+                    "\nbut got:\n" + actual1 + "\nand\n" + actual2 + "\n");
+        }
+
         session.drain();
     }
 
