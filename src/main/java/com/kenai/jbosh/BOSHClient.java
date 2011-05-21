@@ -741,11 +741,17 @@ public final class BOSHClient {
             // dispose() has already been called from the procThread, which destroyed
             // everything but the thread itself.  Join the thread, and don't rerun
             // the rest, which has already been done.
-            Thread thread = procThreadUnjoined;
-            procThreadUnjoined = null;
+            Thread thread;
+            try {
+                if(procThreadUnjoined == Thread.currentThread())
+                    return;
 
-            // We must unlock before joining.
-            lock.unlock();
+                thread = procThreadUnjoined;
+                procThreadUnjoined = null;
+            } finally {
+                // We must unlock before joining.
+                lock.unlock();
+            }
 
             Helpers.joinThreadUninterruptible(thread);
             return;
