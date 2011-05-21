@@ -1178,20 +1178,20 @@ public final class BOSHClient {
                             new HTTPExchange(exchange.getRequest());
                     toResend.add(resendExch);
                 }
-                for (HTTPExchange exchange : toResend) {
-                    exchanges.add(exchange);
-                }
             } else {
                 // Process message as normal
                 processRequestAcknowledgements(req, body);
                 processResponseAcknowledgementData(req);
-                HTTPExchange resendExch =
-                        processResponseAcknowledgementReport(body);
-                if (resendExch != null && toResend == null) {
-                    toResend = new ArrayList<HTTPExchange>(1);
-                    toResend.add(resendExch);
-                    exchanges.add(resendExch);
+                toResend = processResponseAcknowledgementReport(body);
+            }
+
+            // If we need to resend exchanges due to an RBC or due to response acknowledgements,
+            // add the resends to exchanges.
+            if (toResend != null) {
+                for (HTTPExchange exchange : toResend) {
+                    exchanges.add(exchange);
                 }
+                notEmpty.signalAll();
             }
         } catch (BOSHException boshx) {
             LOG.log(Level.FINEST, "Could not process response", boshx);
@@ -1538,11 +1538,11 @@ public final class BOSHClient {
      * This method assumes the lock is currently held.
      *
      * @param resp response
-     * @return exchange to transmit if a resend is to be performed, or
+     * @return list of exchanges to transmit if a resend is to be performed, or
      *  {@code null} if no resend is necessary
      * @throws BOSHException when a a retry is needed but cannot be performed
      */
-    private HTTPExchange processResponseAcknowledgementReport(
+    private ArrayList<HTTPExchange> processResponseAcknowledgementReport(
             final AbstractBody resp)
             throws BOSHException {
         assertLocked();
@@ -1579,10 +1579,9 @@ public final class BOSHClient {
         }
 
         // Resend the missing request
-        HTTPExchange exch = new HTTPExchange(req);
-        exchanges.add(exch);
-        notEmpty.signalAll();
-        return exch;
+        ArrayList<HTTPExchange> toResend = new ArrayList<HTTPExchange>();
+        toResend.add(new HTTPExchange(req));
+        return toResend;
     }
 
     /**
