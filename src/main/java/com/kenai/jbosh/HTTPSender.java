@@ -38,16 +38,12 @@ interface HTTPSender {
     void destroy();
 
     /**
-     * Create a {@code Callable} instance which can be used to send the
-     * request specified to the connection manager.  This method should
-     * return immediately, prior to doing any real work.  The invocation
-     * of the returned {@code Callable} should send the request (if it has
-     * not already been sent by the time of the call), block while waiting
-     * for the response, and then return the response body.
+     * Asynchronously send the specified body.  Return a {@link HTTPResponse}
+     * which may be used to await and read the result.
      *
-     * @param params CM session creation resopnse params
+     * @param params CM session creation response params
      * @param body request body to send
-     * @return callable used to access the response
+     * @return {@link HTTPResponse} used to access the response
      */
     HTTPResponse send(CMSessionParams params, AbstractBody body);
     
