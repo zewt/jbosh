@@ -3,6 +3,7 @@ package com.kenai.jbosh;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
@@ -13,7 +14,6 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Vector;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.net.SocketFactory;
@@ -492,7 +492,6 @@ class NonBlockingSocket {
         this.uri = uri;
 
         try {
-//            LOG.log(Level.WARNING, "creating socket");
             socket = factory.createSocket();
         } catch(IOException e) {
             // In the unlikely case that creating the socket itself fails, stash
@@ -572,8 +571,7 @@ class NonBlockingSocket {
         }
 
         // Closing the socket will cancel the thread if it's connecting or writing to
-        // the socket.  Interrupt will which will stop the thread if it's waiting
-        // on queuedPackets.take.
+        // the socket.  Interrupt will stop the thread if it's waiting on queuedPackets.take.
         // LOG.log(Level.WARNING, "interrupting()");
         thread.interrupt();
         try {
@@ -619,10 +617,13 @@ class NonBlockingSocket {
         OutputStream outputStream = null;
         
         try {
+            // Look up the host.  XXX: This isn't cancellable, so calls to close()
+            // while we're doing this will block until the lookup finishes or times
+            // out.  The only good solution here is dnsjava, which is cancellable.
+            InetAddress addr = InetAddress.getByName(uri.getHost());
+
             // Open the connection.
-            // LOG.log(Level.WARNING, "connecting socket");
-            socket.connect(new InetSocketAddress(uri.getHost(), uri.getPort()));
-            // LOG.log(Level.WARNING, "created socket");
+            socket.connect(new InetSocketAddress(addr, uri.getPort()));
             newInputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
         } catch(IOException e) {
