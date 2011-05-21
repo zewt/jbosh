@@ -195,11 +195,6 @@ public final class BOSHClient {
     private final Condition notFull = lock.newCondition();
 
     /**
-     * Condition indicating that one or more exchanges was removed from exchanges.
-     */
-    private final Condition drained = lock.newCondition();
-
-    /**
      * Session configuration.
      */
     private final BOSHClientConfig cfg;
@@ -681,7 +676,7 @@ public final class BOSHClient {
             LOG.finest("Waiting while draining...");
             while (isWorking() && !exchanges.isEmpty()) {
                 try {
-                    drained.await();
+                    notFull.await();
                 } catch (InterruptedException intx) {
                     LOG.log(Level.FINEST, INTERRUPTED, intx);
                 }
@@ -792,7 +787,6 @@ public final class BOSHClient {
             pendingRequestAcks = null;
             notEmpty.signalAll();
             notFull.signalAll();
-            drained.signalAll();
         } finally {
             lock.unlock();
         }
@@ -1056,7 +1050,7 @@ public final class BOSHClient {
                         lock.lock();
                         try {
                             exchanges.remove(exch);
-                            drained.signalAll();
+                            notFull.signalAll();
                         } finally {
                             lock.unlock();
                         }
@@ -1194,7 +1188,7 @@ public final class BOSHClient {
             if (lock.isHeldByCurrentThread()) {
                 try {
                     exchanges.remove(exch);
-                    drained.signalAll();
+                    notFull.signalAll();
 
                     // If this is the response to a pause request, clear any empty packet timer
                     // that's already been sent, so we reschedule based on the duration of the
@@ -1208,8 +1202,6 @@ public final class BOSHClient {
                         delay = getDefaultEmptyRequestDelay();
                     if(delay != -1)
                         scheduleEmptyRequests(delay);
-
-                    notFull.signalAll();
                 } finally {
                     lock.unlock();
                 }
@@ -1595,7 +1587,6 @@ public final class BOSHClient {
 
         // Clear the exchanges that we're resending.
         exchanges.clear();
-        drained.signalAll();
         notFull.signalAll();
 
         return toResend;
