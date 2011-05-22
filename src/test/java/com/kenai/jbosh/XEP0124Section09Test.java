@@ -54,9 +54,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         conn = cm.awaitConnection();
         StubRequest scReq = conn.getRequest();
         String rid = scReq.getBody().getAttribute(Attributes.RID);
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.ACK, rid)
                 .build();
         conn.sendResponse(scr);
@@ -100,9 +98,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         conn = cm.awaitConnection();
         StubRequest scReq = conn.getRequest();
         String rid = scReq.getBody().getAttribute(Attributes.RID);
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.ACK, rid)
                 .build();
         conn.sendResponse(scr);
@@ -145,9 +141,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         // Session initialization
         session.send(ComposableBody.builder().build());
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.ACK, "54321")
                 .build();
         conn.sendResponse(scr);
@@ -199,10 +193,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         AbstractBody body = conn.getRequest().getBody();
         String val = body.getAttribute(Attributes.ACK);
         String initialRID = body.getAttribute(Attributes.RID);
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         assertNotNull("initial ack attribute presence", val);
         assertEquals("initial ack value", "1", val);
@@ -313,8 +304,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         AbstractBody body = conn.getRequest().getBody();
         String ridStr = body.getAttribute(Attributes.RID);
         long rid = Long.parseLong(ridStr);
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.WAIT, "1")
                 .setAttribute(Attributes.ACK, ridStr)
                 .build();
