@@ -592,6 +592,7 @@ public final class BOSHClient {
         assertUnlocked();
         lock.lock();
         AttrMaxPause maxPause = null;
+        HTTPExchange sentExchange;
         try {
             if (cmParams == null) {
                 return false;
@@ -602,12 +603,14 @@ public final class BOSHClient {
                 return false;
             }
 
-            send(msg.rebuild()
+            sentExchange = send(msg.rebuild()
                     .setAttribute(Attributes.PAUSE, maxPause.toString())
                     .build(), false);
         } finally {
             lock.unlock();
         }
+
+        fireRequestSent(sentExchange.getRequest());
         return true;
     }
 
