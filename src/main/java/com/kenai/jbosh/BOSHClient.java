@@ -470,14 +470,18 @@ public final class BOSHClient {
      * @throws BOSHException on message transmission failure
      */
     public void send(final ComposableBody body) throws BOSHException {
+        HTTPExchange sentExchange;
+
         assertUnlocked();
         lock.lock();
 
         try {
-            send(body, false);
+            sentExchange = send(body, false);
         } finally {
             lock.unlock();
         }
+
+        fireRequestSent(sentExchange.getRequest());
     }
 
     /*
@@ -490,7 +494,7 @@ public final class BOSHClient {
      * figured out how many to send, the asynchronous request won't cause an
      * empty request to be sent that shouldn't be.
      */
-    private boolean send(final ComposableBody body, boolean emptyRequest) throws BOSHException {
+    private HTTPExchange send(final ComposableBody body, boolean emptyRequest) throws BOSHException {
         assertLocked();
         if (body == null) {
             throw(new IllegalArgumentException(
@@ -503,12 +507,12 @@ public final class BOSHClient {
             if(emptyRequest) {
                 // Never send empty requests while paused.
                 if (sessionPaused)
-                    return false;
+                    return null;
 
                 // Never send empty requests if we havn't received a response to the
                 // first packet yet.
                 if (cmParams == null)
-                    return false;
+                    return null;
 
                 int wantedExchanges;
                 if (cmParams.getWait().getValue() == 0 || cmParams.getHold().getValue() == 0) {
@@ -522,7 +526,7 @@ public final class BOSHClient {
                 // an empty request.
                 int exchangesNeeded = wantedExchanges - exchanges.size();
                 if (exchangesNeeded <= 0)
-                    return false;
+                    return null;
 
                 LOG.info("Sending empty request");
             }
@@ -555,8 +559,7 @@ public final class BOSHClient {
             notEmpty.signalAll();
         } finally {
         }
-        fireRequestSent(exch.getRequest());
-        return true;
+        return exch;
     }
 
     /**
@@ -1317,34 +1320,39 @@ public final class BOSHClient {
     private void sendEmptyRequests(boolean wakeFromPause) {
         assertUnlocked();
 
-        // XXX: Cork the sender, so if we're pipelining, all of these requests will
-        // be compressed and sent together.
-        lock.lock();
-
-        try {
-            // Once we're done, allow a new empty request task to be scheduled.
-            emptyRequestFuture = null;
-
-            if(!isWorking())
-                return;
+        while(true) {
+            HTTPExchange sentExchange;
+            lock.lock();
 
             try {
-                do {
-                    // If we're told we can wake from pause, but we're no longer paused,
-                    // switch back to a regular empty request.  This will happen if the
-                    // user sends a packet while we're paused.  It'll also happen the second
-                    // time through this loop, if hold is greater than one; the first packet
-                    // we send below will clear sessionPaused.
-                    if(!sessionPaused)
-                        wakeFromPause = false;
+                if(!isWorking())
+                    return;
+
+                // If we're told we can wake from pause, but we're no longer paused,
+                // switch back to a regular empty request.  This will happen if the
+                // user sends a packet while we're paused.  It'll also happen the second
+                // time through this loop, if hold is greater than one; the first packet
+                // we send below will clear sessionPaused.
+                if(!sessionPaused)
+                    wakeFromPause = false;
+
+                try {
+                    sentExchange = send(ComposableBody.builder().build(), !wakeFromPause);
+                } catch (BOSHException boshx) {
+                    dispose(boshx);
+                    return;
                 }
-                while(send(ComposableBody.builder().build(), !wakeFromPause));
+
+                if(sentExchange == null) {
+                    // Once we're done, allow a new empty request task to be scheduled.
+                    emptyRequestFuture = null;
+                    break;
+                }
             } finally {
                 lock.unlock();
             }
-        } catch (BOSHException boshx) {
-            dispose(boshx);
-            return;
+
+            fireRequestSent(sentExchange.getRequest());
         }
     }
 
