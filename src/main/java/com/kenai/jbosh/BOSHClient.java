@@ -549,15 +549,13 @@ public final class BOSHClient {
                     pendingRequestAcks.add(request);
                 }
             }
-            exch = new HTTPExchange(request);
+            HTTPResponse resp = httpSender.send(params, request);
+            exch = new HTTPExchange(request, resp);
             exchanges.add(exch);
             notEmpty.signalAll();
         } finally {
         }
-        AbstractBody finalReq = exch.getRequest();
-        HTTPResponse resp = httpSender.send(params, finalReq);
-        exch.setHTTPResponse(resp);
-        fireRequestSent(finalReq);
+        fireRequestSent(exch.getRequest());
         return true;
     }
 
@@ -1130,7 +1128,8 @@ public final class BOSHClient {
         // Process the message with the current session state
         AbstractBody req = exch.getRequest();
         CMSessionParams params;
-        List<HTTPExchange> toResend = null;
+        List<AbstractBody> toResend = null;
+        List<HTTPExchange> resent = null;
         lock.lock();
         try {
             if (!isWorking()) {
@@ -1174,8 +1173,12 @@ public final class BOSHClient {
             // If we need to resend exchanges due to an RBC or due to response acknowledgements,
             // add the resends to exchanges.
             if (toResend != null) {
-                for (HTTPExchange exchange : toResend) {
-                    exchanges.add(exchange);
+                resent = new ArrayList<HTTPExchange>();
+                for (AbstractBody resendReq: toResend) {
+                    HTTPResponse response = httpSender.send(params, resendReq);
+                    HTTPExchange resendExch = new HTTPExchange(resendReq, response);
+                    exchanges.add(resendExch);
+                    resent.add(resendExch);
                 }
                 notEmpty.signalAll();
             }
@@ -1208,11 +1211,8 @@ public final class BOSHClient {
             }
         }
 
-        if (toResend != null) {
-            for (HTTPExchange resend : toResend) {
-                HTTPResponse response =
-                        httpSender.send(params, resend.getRequest());
-                resend.setHTTPResponse(response);
+        if (resent != null) {
+            for (HTTPExchange resend : resent) {
                 fireRequestSent(resend.getRequest());
             }
         }
@@ -1526,7 +1526,7 @@ public final class BOSHClient {
      *  {@code null} if no resend is necessary
      * @throws BOSHException when a a retry is needed but cannot be performed
      */
-    private ArrayList<HTTPExchange> processResponseAcknowledgementReport(
+    private ArrayList<AbstractBody> processResponseAcknowledgementReport(
             final AbstractBody resp)
             throws BOSHException {
         assertLocked();
@@ -1563,8 +1563,8 @@ public final class BOSHClient {
         }
 
         // Resend the missing request
-        ArrayList<HTTPExchange> toResend = new ArrayList<HTTPExchange>();
-        toResend.add(new HTTPExchange(req));
+        ArrayList<AbstractBody> toResend = new ArrayList<AbstractBody>();
+        toResend.add(req);
         return toResend;
     }
 
@@ -1573,14 +1573,12 @@ public final class BOSHClient {
      *
      * @return list of exchanges to retransmit
      */
-    private ArrayList<HTTPExchange> resendOutstandingRequests() {
+    private ArrayList<AbstractBody> resendOutstandingRequests() {
         assertLocked();
 
-        ArrayList<HTTPExchange> toResend = new ArrayList<HTTPExchange>();
+        ArrayList<AbstractBody> toResend = new ArrayList<AbstractBody>();
         for (HTTPExchange exchange : exchanges) {
-            HTTPExchange resendExch =
-                    new HTTPExchange(exchange.getRequest());
-            toResend.add(resendExch);
+            toResend.add(exchange.getRequest());
 
             exchange.getHTTPResponse().abort();
         }

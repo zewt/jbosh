@@ -16,40 +16,15 @@
 
 package com.kenai.jbosh;
 
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 /**
  * A request and response pair representing a single exchange with a remote
- * content manager.  This is primarily a container class intended to maintain
- * the relationship between the request and response but allows the response
- * to be added after the fact.
+ * content manager.
  */
 final class HTTPExchange {
-
-    /**
-     * Logger.
-     */
-    private static final Logger LOG =
-            Logger.getLogger(HTTPExchange.class.getName());
-    
     /**
      * Request body.
      */
     private final AbstractBody request;
-
-    /**
-     * Lock instance used to protect and provide conditions.
-     */
-    private final Lock lock = new ReentrantLock();
-
-    /**
-     * Condition used to signal when the response has been set.
-     */
-    private final Condition ready = lock.newCondition();
 
     /**
      * HTTPResponse instance.
@@ -64,11 +39,15 @@ final class HTTPExchange {
      *
      * @param req request message body
      */
-    HTTPExchange(final AbstractBody req) {
+    HTTPExchange(final AbstractBody req, HTTPResponse resp) {
         if (req == null) {
             throw(new IllegalArgumentException("Request body cannot be null"));
         }
+        if (resp == null) {
+            throw(new IllegalArgumentException("Response object cannot be null"));
+        }
         request = req;
+        response = resp;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -84,43 +63,12 @@ final class HTTPExchange {
     }
 
     /**
-     * Set the HTTPResponse instance.
-     *
-     * @return HTTPResponse instance associated with the request.
-     */
-    void setHTTPResponse(HTTPResponse resp) {
-        lock.lock();
-        try {
-            if (response != null) {
-                throw(new IllegalStateException(
-                        "HTTPResponse was already set"));
-            }
-            response = resp;
-            ready.signalAll();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
      * Get the HTTPResponse instance.
      *
      * @return HTTPResponse instance associated with the request.
      */
     HTTPResponse getHTTPResponse() {
-        lock.lock();
-        try {
-            while (response == null) {
-                try {
-                    ready.await();
-                } catch (InterruptedException intx) {
-                    LOG.log(Level.FINEST, "Interrupted", intx);
-                }
-            }
-            return response;
-        } finally {
-            lock.unlock();
-        }
+        return response;
     }
 
 }
