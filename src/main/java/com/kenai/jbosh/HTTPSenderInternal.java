@@ -157,7 +157,7 @@ final class HTTPSenderInternal implements HTTPSender {
         System.arraycopy(requestHeaderData, 0, requestData, 0, requestHeaderData.length);
         System.arraycopy(data, 0, requestData, requestHeaderData.length, data.length);
 
-        return new InternalHTTPResponse(requestData, params);
+        return new InternalHTTPResponse(requestData);
     }
 
     /** A request has completed, and the given connection is being returned. */
@@ -207,8 +207,6 @@ final class HTTPSenderInternal implements HTTPSender {
         /** The HTTP response status code. */
         private int statusCode;
 
-        private CMSessionParams params;
-
         /**
          * Create and send a new request to the upstream connection manager,
          * providing deferred access to the results to be returned.
@@ -220,10 +218,9 @@ final class HTTPSenderInternal implements HTTPSender {
          *  response, or {@code null} if the session has not yet been established
          * @param request body of the client request
          */
-        InternalHTTPResponse(byte[] requestData, final CMSessionParams params)
+        InternalHTTPResponse(byte[] requestData)
         {
             super();
-            this.params = params;
             this.requestData = requestData;
 
             sendRequest();
