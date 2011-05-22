@@ -18,15 +18,15 @@ package com.kenai.jbosh;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.Socket;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.Vector;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
 
 /**
  * Implementation of the {@code HTTPSender} interface which uses InternalHTTPConnection.
@@ -253,22 +253,23 @@ final class HTTPSenderInternal implements HTTPSender {
                     // LOG.log(Level.WARNING, "No connection took our packet");
                 }
 
-                SocketFactory socketFactory = null;
-                if(cfg.getURI().getScheme().equals("http")) {
-                    // Use the supplied SocketFactory, if any.  Otherwise, use the system-provided one.
-                    socketFactory = cfg.getSocketFactoryHTTP();
-                    if(socketFactory == null)
-                        socketFactory = SocketFactory.getDefault();
-                } else if(cfg.getURI().getScheme().equals("https")) {
-                    // Use the supplied SSLSocketFactory, if any.  Otherwise, use the system-provided one.
-                    socketFactory = cfg.getSocketFactoryHTTPS();
-                    if(socketFactory == null)
-                        socketFactory = SSLSocketFactory.getDefault();
+                SSLConnector sslConnector = cfg.getSSLConnector();
+                if(sslConnector == null) {
+                    final SSLContext sslContext = cfg.getSSLContext();
+                    if(sslContext != null) {
+                        sslConnector = new SSLConnector() {
+                            public SSLSocket attachSSLConnection(Socket socket, String host, int port) throws IOException {
+                                return (SSLSocket) sslContext.getSocketFactory().createSocket(socket, host, port, true);
+                            }
+                        };
+                    } else {
+                        sslConnector = SSLConnector.getDefault();
+                    }
                 }
 
                 // Creating the InternalHTTPConnection will never block, so this is safe to call
                 // while synchronized.
-                connection = new InternalHTTPConnection<InternalHTTPResponse>(cfg.getURI(), socketFactory);
+                connection = new InternalHTTPConnection<InternalHTTPResponse>(cfg.getURI(), cfg.getSocketFactory(), sslConnector);
                 connections.add(connection);
 
                 // Send the request over the connection we just created.

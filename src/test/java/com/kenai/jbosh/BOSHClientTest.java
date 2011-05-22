@@ -17,7 +17,6 @@
 package com.kenai.jbosh;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +26,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocket;
+
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -104,28 +104,14 @@ public class BOSHClientTest extends AbstractBOSHTest {
         session.close();
     }
 
-    /** This SocketFactory tracks whether it has been used to instantiate a Socket. */
-    static private class TestSocketFactory extends SocketFactory {
-        public boolean wasUsed = false;
-        public Socket createSocket() throws IOException {
+    /** This TestSSLConnector tracks whether it has been used to instantiate a Socket. */
+    static class TestSSLConnector extends SSLConnector {
+        boolean wasUsed = false;
+        public SSLSocket attachSSLConnection(Socket socket, String host, int port) throws IOException {
             wasUsed = true;
-            return SocketFactory.getDefault().createSocket();
-        }
-        public Socket createSocket(InetAddress host, int port) throws IOException {
-            wasUsed = true;
-            return SocketFactory.getDefault().createSocket(host, port);
-        }
-        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
-            wasUsed = true;
-            return SocketFactory.getDefault().createSocket(address, port, localAddress, localPort);
-        }
-        public Socket createSocket(String host, int port) throws IOException {
-            wasUsed = true;
-            return SocketFactory.getDefault().createSocket(host, port);
-        }
-        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-            wasUsed = true;
-            return SocketFactory.getDefault().createSocket(host, port, localHost, localPort);
+
+            // We don't actually have a CM that supports SSL; throw an error after setting the flag.
+            throw new IOException("Dummy error");
         }
     };
 
@@ -136,22 +122,17 @@ public class BOSHClientTest extends AbstractBOSHTest {
     public void configSocketFactory() throws Exception {
         logTestStart();
 
-        TestSocketFactory socketFactoryHTTP = new TestSocketFactory();
-        TestSocketFactory socketFactoryHTTPS = new TestSocketFactory();
-
+        TestSSLConnector sslConnector = new TestSSLConnector();
         // Create an HTTP session
         BOSHClientConfig cfg = BOSHClientConfig.Builder.create(cm.getURI(), "test@domain")
-                .setSocketFactoryHTTP(socketFactoryHTTP)
-                .setSocketFactoryHTTPS(socketFactoryHTTPS)
+                .setSSLConnector(sslConnector)
                 .build();
         assertEquals(cfg.getURI().getScheme(), "http");
         session = createSession(cfg);
 
         session.send(ComposableBody.builder().build());
         cm.awaitConnection();
-
-        assertTrue(socketFactoryHTTP.wasUsed);
-        assertFalse(socketFactoryHTTPS.wasUsed);
+        assertFalse(sslConnector.wasUsed);
     }
 
     /*
@@ -161,22 +142,20 @@ public class BOSHClientTest extends AbstractBOSHTest {
     public void configSSLSocketFactory() throws Exception {
         logTestStart();
 
-        TestSocketFactory socketFactoryHTTP = new TestSocketFactory();
-        TestSocketFactory socketFactoryHTTPS = new TestSocketFactory();
-
+        TestSSLConnector sslConnector = new TestSSLConnector();
         // Create an HTTPS session
         BOSHClientConfig cfg = BOSHClientConfig.Builder.create(cm.getURIHTTPS(), "test@domain")
-                .setSocketFactoryHTTP(socketFactoryHTTP)
-                .setSocketFactoryHTTPS(socketFactoryHTTPS)
+                .setSSLConnector(sslConnector)
                 .build();
         assertEquals(cfg.getURI().getScheme(), "https");
         session = createSession(cfg);
 
         session.send(ComposableBody.builder().build());
-        cm.awaitConnection();
 
-        assertFalse(socketFactoryHTTP.wasUsed);
-        assertTrue(socketFactoryHTTPS.wasUsed);
+        // Give the connection a moment to call attachSSLConnection.  The connection will
+        // fail due to the error thrown by TestSSLConnector, so we can't use cm.awaitConnection().
+        Thread.sleep(250);
+        assertTrue(sslConnector.wasUsed);
     }
 
     @Test(timeout=5000)

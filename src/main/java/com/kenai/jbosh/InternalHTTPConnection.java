@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 
 import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocket;
 
 
 /**
@@ -73,10 +74,12 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
     /** Prepare to connect to the scheme, host and port specified in uri.  The
      * other fields of uri are unused. */
-    InternalHTTPConnection(URI uri, SocketFactory factory) {
+    InternalHTTPConnection(URI uri, SocketFactory factory, SSLConnector sslConnector) {
         if(factory == null)
             factory = SocketFactory.getDefault();
-        socket = new NonBlockingSocket(uri, factory);
+        if(sslConnector == null)
+            sslConnector = SSLConnector.getDefault();
+        socket = new NonBlockingSocket(uri, factory, sslConnector);
     }
 
     Thread thread = null;
@@ -481,6 +484,7 @@ class NonBlockingSocket {
     private Thread thread;
     private IOException error;
     private Socket socket;
+    private SSLConnector sslConnector;
     private InputStream inputStream;
     private LinkedBlockingQueue<byte[]> queuedPackets = new LinkedBlockingQueue<byte[]>();
     boolean closed = false;
@@ -488,8 +492,9 @@ class NonBlockingSocket {
     /** Open a socket using the given factory to the specified URI.  Returns
      * immediately.  If a connection error occurs, it will be reported on the first
      * call to read(). */
-    public NonBlockingSocket(URI uri, SocketFactory factory) {
+    public NonBlockingSocket(URI uri, SocketFactory factory, SSLConnector sslConnector) {
         this.uri = uri;
+        this.sslConnector = sslConnector;
 
         try {
             socket = factory.createSocket();
@@ -624,6 +629,15 @@ class NonBlockingSocket {
 
             // Open the connection.
             socket.connect(new InetSocketAddress(addr, uri.getPort()));
+
+            // If this is an HTTPS connection, attach TLS.
+            if(uri.getScheme().equalsIgnoreCase("https")) {
+                SSLSocket sslSocket = sslConnector.attachSSLConnection(socket, uri.getHost(), uri.getPort());
+                socket = sslSocket;
+
+                sslSocket.startHandshake();
+            }
+
             newInputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
         } catch(IOException e) {

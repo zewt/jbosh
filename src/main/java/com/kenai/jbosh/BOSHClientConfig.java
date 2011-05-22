@@ -73,12 +73,12 @@ public final class BOSHClientConfig {
     /**
      * Supplied SocketFactory for creating sockets.
      */
-    private final SocketFactory socketFactoryHTTP;
+    private final SocketFactory socketFactory;
 
     /**
      * Supplied SocketFactory for creating SSL sockets.
      */
-    private final SocketFactory socketFactoryHTTPS;
+    private final SSLConnector sslConnector;
 
     /**
      * Flag indicating that compression should be attempted, if possible.
@@ -108,8 +108,8 @@ public final class BOSHClientConfig {
         private String bProxyHost;
         private int bProxyPort;
         private SSLContext bSSLContext;
-        private SocketFactory bSocketFactoryHTTP;
-        private SocketFactory bSocketFactoryHTTPS;
+        private SocketFactory bSocketFactory;
+        private SSLConnector bSSLConnector;
         private Boolean bCompression;
 
         /**
@@ -164,8 +164,8 @@ public final class BOSHClientConfig {
             result.bProxyHost = cfg.getProxyHost();
             result.bProxyPort = cfg.getProxyPort();
             result.bSSLContext = cfg.getSSLContext();
-            result.bSocketFactoryHTTP = cfg.getSocketFactoryHTTP();
-            result.bSocketFactoryHTTPS = cfg.getSocketFactoryHTTPS();
+            result.bSocketFactory = cfg.getSocketFactory();
+            result.bSSLConnector = cfg.getSSLConnector();
             result.bCompression = cfg.isCompressionEnabled();
             return result;
         }
@@ -275,8 +275,8 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "SSL context cannot be null"));
             }
-            if (bSocketFactoryHTTP != null) {
-                throw(new IllegalArgumentException("SocketFactoryHTTPS and SSLContext can not both be set"));
+            if (bSSLConnector != null) {
+                throw(new IllegalArgumentException("SSLConnector and SSLContext can not both be set"));
             }
             bSSLContext = ctx;
             return this;
@@ -287,29 +287,29 @@ public final class BOSHClientConfig {
          * @param factory socket factory
          * @return builder instance
          */
-        public Builder setSocketFactoryHTTP(final SocketFactory factory) {
+        public Builder setSocketFactory(final SocketFactory factory) {
             if (factory == null) {
-                throw(new IllegalArgumentException("SocketFactoryHTTP cannot be null"));
+                throw(new IllegalArgumentException("SocketFactory cannot be null"));
             }
 
-            bSocketFactoryHTTP = factory;
+            bSocketFactory = factory;
             return this;
         }
 
         /**
-         * Set the {@link SocketFactory} for HTTPS connections.
-         * @param factory socket factory
+         * Set the {@link SSLConnector} for establishing HTTPS connections.
+         * @param connector SSLConnector to use
          * @return builder instance
          */
-        public Builder setSocketFactoryHTTPS(final SocketFactory factory) {
-            if (factory == null) {
-                throw(new IllegalArgumentException("SocketFactoryHTTPS cannot be null"));
+        public Builder setSSLConnector(final SSLConnector connector) {
+            if (connector == null) {
+                throw(new IllegalArgumentException("SSLConnector cannot be null"));
             }
             if (bSSLContext != null) {
-                throw(new IllegalArgumentException("SocketFactoryHTTPS and SSLContext can not both be set"));
+                throw(new IllegalArgumentException("SSLConnector and SSLContext can not both be set"));
             }
 
-            bSocketFactoryHTTPS = factory;
+            bSSLConnector = connector;
             return this;
         }
 
@@ -365,8 +365,8 @@ public final class BOSHClientConfig {
                     bProxyHost,
                     port,
                     bSSLContext,
-                    bSocketFactoryHTTP,
-                    bSocketFactoryHTTPS,
+                    bSocketFactory,
+                    bSSLConnector,
                     compression);
         }
 
@@ -386,8 +386,8 @@ public final class BOSHClientConfig {
      * @param cProxyHost proxy host
      * @param cProxyPort proxy port
      * @param cSSLContext SSL context
-     * @param cSocketFactoryHTTP socket factory for HTTP connections
-     * @param cSocketFactoryHTTPS socket factory for HTTPS connections
+     * @param cSocketFactory socket factory to use
+     * @param cSSLConnector SSLConnector to use for HTTPS connections
      * @param cCompression compression enabled flag
      */
     private BOSHClientConfig(
@@ -399,8 +399,8 @@ public final class BOSHClientConfig {
             final String cProxyHost,
             final int cProxyPort,
             final SSLContext cSSLContext,
-            final SocketFactory cSocketFactoryHTTP,
-            final SocketFactory cSocketFactoryHTTPS,
+            final SocketFactory cSocketFactory,
+            final SSLConnector cSSLConnector,
             final boolean cCompression) {
         uri = cURI;
         to = cDomain;
@@ -410,8 +410,8 @@ public final class BOSHClientConfig {
         proxyHost = cProxyHost;
         proxyPort = cProxyPort;
         sslContext = cSSLContext;
-        socketFactoryHTTP = cSocketFactoryHTTP;
-        socketFactoryHTTPS = cSocketFactoryHTTPS;
+        socketFactory = cSocketFactory;
+        sslConnector = cSSLConnector;
         compressionEnabled = cCompression;
     }
 
@@ -496,20 +496,18 @@ public final class BOSHClientConfig {
      * @return {@link SocketFactory} to use, or {@code null} if none
      *  was provided.
      */
-    public SocketFactory getSocketFactoryHTTP() {
-        return socketFactoryHTTP;
+    public SocketFactory getSocketFactory() {
+        return socketFactory;
     }
 
     /**
-     * Get the {@link SocketFactory} to use for HTTPS connections.
-     * 
-     * An SSLSocketFactory may be used, but is not required.
+     * Get the {@link SSLConnector} for establishing HTTPS connections.
      *
-     * @return {@link SocketFactory} to use, or {@code null} if none
+     * @return {@link SSLConnector} to use, or {@code null} if none
      *  was provided.
      */
-    public SocketFactory getSocketFactoryHTTPS() {
-        return socketFactoryHTTPS;
+    public SSLConnector getSSLConnector() {
+        return sslConnector;
     }
 
     /**
