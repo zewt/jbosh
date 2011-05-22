@@ -1113,11 +1113,10 @@ public final class BOSHClient {
     private void processExchange(final HTTPExchange exch) {
         assertUnlocked();
 
-        HTTPResponse resp;
         AbstractBody body;
         int respCode;
         try {
-            resp = exch.getHTTPResponse();
+            HTTPResponse resp = exch.getHTTPResponse();
             body = resp.getBody();
             respCode = resp.getHTTPStatus();
         } catch (BOSHException boshx) {
@@ -1467,7 +1466,7 @@ public final class BOSHClient {
             return;
         }
 
-        // If a report or time attribute is set, we aren't acking anything
+        // Don't remove packets from the buffer if the CM is reporting a lost response.
         if (resp.getAttribute(Attributes.REPORT) != null) {
             return;
         }
