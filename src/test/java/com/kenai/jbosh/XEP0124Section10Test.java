@@ -125,14 +125,14 @@ public class XEP0124Section10Test extends AbstractBOSHTest {
             }
         });
 
-        // Initiate a session with a maxpause.  Enable POLLING, so empty requests
-        // will be sent.
+        // Initiate a session with a maxpause and empty requests enabled.
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
         AbstractBody req = conn.getRequest().getBody();
         AbstractBody scr = getSessionCreationResponse(req)
                 .setAttribute(Attributes.POLLING, "1")
                 .setAttribute(Attributes.MAXPAUSE, "2")
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
                 .build();
         conn.sendResponse(scr);
         session.drain();
