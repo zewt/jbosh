@@ -168,7 +168,7 @@ final class HTTPSenderInternal implements HTTPSender {
         if(connections == null)
             return;
 
-        LOG.log(Level.WARNING, "Packet completed (" + (success? "success":"fail") + ")");
+        // LOG.log(Level.WARNING, "Packet completed (" + (success? "success":"fail") + ")");
 
         if(success && connectionToRelease == null)
             throw new IllegalStateException("Connection ended successfully, but without a connection");
