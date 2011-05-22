@@ -54,10 +54,7 @@ public class XEP0124Section13Test extends AbstractBOSHTest {
         // Establish a session
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         session.drain();
 
@@ -93,10 +90,7 @@ public class XEP0124Section13Test extends AbstractBOSHTest {
         // Establish a session
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         session.drain();
 
@@ -141,10 +135,7 @@ public class XEP0124Section13Test extends AbstractBOSHTest {
         // Establish a session
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         session.drain();
 
