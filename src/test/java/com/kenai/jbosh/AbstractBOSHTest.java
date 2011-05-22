@@ -46,6 +46,7 @@ public abstract class AbstractBOSHTest {
 
     @Before
     public void setup() throws Exception {
+        enableAssertions();
         cleaningUp.set(false);
         connValidator = new ConnectionValidator();
         cm = new StubCM();
@@ -147,6 +148,11 @@ public abstract class AbstractBOSHTest {
             .setNamespaceDefinition(Attributes.DISABLE_EMPTY_MESSAGES.getPrefix(),
                     Attributes.DISABLE_EMPTY_MESSAGES.getNamespaceURI())
             .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, "1");
+    }
+
+    protected void enableAssertions() {
+        final String prop = BOSHClient.class.getSimpleName() + ".assertionsEnabled";
+        System.setProperty(prop, "true");
     }
 
     /**
