@@ -1145,9 +1145,7 @@ public final class BOSHClient {
 
         // Process the message with the current session state
         AbstractBody req = exch.getRequest();
-        CMSessionParams params;
         List<AbstractBody> toResend = null;
-        List<HTTPExchange> resent = null;
         lock.lock();
         try {
             if (!isWorking()) {
@@ -1169,7 +1167,6 @@ public final class BOSHClient {
                     return;
                 }
             }
-            params = cmParams;
 
             checkForTerminalBindingConditions(body, respCode);
             if (isTermination(body)) {
@@ -1191,11 +1188,9 @@ public final class BOSHClient {
             // If we need to resend exchanges due to an RBC or due to response acknowledgements,
             // add the resends to exchanges.
             if (toResend != null) {
-                resent = new ArrayList<HTTPExchange>();
                 for (AbstractBody resendReq: toResend) {
-                    resent.add(createExchangeAndSend(resendReq));
+                    createExchangeAndSend(resendReq);
                 }
-                notEmpty.signalAll();
             }
         } catch (BOSHException boshx) {
             LOG.log(Level.FINEST, "Could not process response", boshx);
@@ -1226,9 +1221,9 @@ public final class BOSHClient {
             }
         }
 
-        if (resent != null) {
-            for (HTTPExchange resend : resent) {
-                fireRequestSent(resend.getRequest());
+        if (toResend != null) {
+            for (AbstractBody request: toResend) {
+                fireRequestSent(request);
             }
         }
     }
