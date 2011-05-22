@@ -476,7 +476,7 @@ public final class BOSHClient {
         lock.lock();
 
         try {
-            sentExchange = send(body, false);
+            sentExchange = sendInternal(body, false);
         } finally {
             lock.unlock();
         }
@@ -494,7 +494,7 @@ public final class BOSHClient {
      * figured out how many to send, the asynchronous request won't cause an
      * empty request to be sent that shouldn't be.
      */
-    private HTTPExchange send(final ComposableBody body, boolean emptyRequest) throws BOSHException {
+    private HTTPExchange sendInternal(final ComposableBody body, boolean emptyRequest) throws BOSHException {
         assertLocked();
         if (body == null) {
             throw(new IllegalArgumentException(
@@ -603,7 +603,7 @@ public final class BOSHClient {
                 return false;
             }
 
-            sentExchange = send(msg.rebuild()
+            sentExchange = sendInternal(msg.rebuild()
                     .setAttribute(Attributes.PAUSE, maxPause.toString())
                     .build(), false);
         } finally {
@@ -1340,7 +1340,7 @@ public final class BOSHClient {
                     wakeFromPause = false;
 
                 try {
-                    sentExchange = send(ComposableBody.builder().build(), !wakeFromPause);
+                    sentExchange = sendInternal(ComposableBody.builder().build(), !wakeFromPause);
                 } catch (BOSHException boshx) {
                     dispose(boshx);
                     return;
