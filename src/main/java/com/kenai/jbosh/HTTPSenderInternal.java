@@ -165,27 +165,25 @@ final class HTTPSenderInternal implements HTTPSender {
         return new InternalHTTPResponse(requestData, params);
     }
 
-    /** The given response just completed. */
-    synchronized void requestCompleted(InternalHTTPResponse response, boolean success) {
+    /** A request has completed, and the given connection is being returned. */
+    synchronized void requestCompleted(
+            InternalHTTPConnection<InternalHTTPResponse> connectionToRelease,
+            boolean success) {
         // If we've been destroyed, do nothing.
         if(connections == null)
             return;
 
         LOG.log(Level.WARNING, "Packet completed (" + (success? "success":"fail") + ")");
 
-        // Take the connection from the request;
-        InternalHTTPConnection<InternalHTTPResponse> activeConnection = response.connection;
-        response.connection = null;
-
-        if(success && activeConnection == null)
+        if(success && connectionToRelease == null)
             throw new IllegalStateException("Connection ended successfully, but without a connection");
 
         // If the connection doesn't support keepalive, shut down the connection, if any.
-        if(activeConnection != null && !supportsKeepAlive) {
+        if(connectionToRelease != null && (supportsKeepAlive == null || !supportsKeepAlive)) {
             // LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
-            activeConnection.abort();
-            connections.remove(activeConnection);
-            activeConnection = null;
+            connectionToRelease.abort();
+            connections.remove(connectionToRelease);
+            connectionToRelease = null;
         }
 
         // If a request is queued, start it using the same connection.
@@ -321,10 +319,16 @@ final class HTTPSenderInternal implements HTTPSender {
 
                 // Send the request over the connection we just created.
                 connection.sendRequest(requestData, this);
+
+                // Notify any blocking awaitResponse call that the connection is available.
+                HTTPSenderInternal.this.notifyAll();
             }
         }
 
         BOSHException abortWithError(BOSHException e) {
+            if(e == null)
+                throw new IllegalArgumentException("e must not be null");
+
             // Cancel the request.
             InternalHTTPConnection<InternalHTTPResponse> connectionToCancel = null;
             synchronized(HTTPSenderInternal.this) {
@@ -343,7 +347,7 @@ final class HTTPSenderInternal implements HTTPSender {
             if(connectionToCancel != null)
                 connectionToCancel.abort();
 
-            requestCompleted(this, false);
+            requestCompleted(connectionToCancel, false);
             // LOG.log(Level.WARNING, "HTTPSender abortWithError done");
             return toThrow;
         }
@@ -405,7 +409,7 @@ final class HTTPSenderInternal implements HTTPSender {
             // thread calls abort() it may abort the connection and set
             // connection to null.
             InternalHTTPConnection<InternalHTTPResponse> connection;
-            synchronized(this) {
+            synchronized(HTTPSenderInternal.this) {
                 if(toThrow != null)
                     throw toThrow;
                 // If we already have a response, stop.
@@ -413,6 +417,13 @@ final class HTTPSenderInternal implements HTTPSender {
                 if(body != null)
                     return;
 
+                while(this.connection == null) {
+                    try {
+                        HTTPSenderInternal.this.wait();
+                    } catch(InterruptedException e) {
+                        throw new BOSHException("Interrupted");
+                    }
+                }
                 connection = this.connection;
             }
 
@@ -452,7 +463,12 @@ final class HTTPSenderInternal implements HTTPSender {
             supportsKeepAlive = false;
 
             // Tell HTTPSenderInternal that we're done.  Don't call this with this object locked.
-            requestCompleted(this, true);
+            InternalHTTPConnection<InternalHTTPResponse> finishedConnection = null;
+            synchronized(HTTPSenderInternal.this) {
+                finishedConnection = connection;
+                connection = null;
+            }
+            requestCompleted(finishedConnection, true);
         }
     }
 }
