@@ -20,9 +20,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map.Entry;
-import java.util.Queue;
 import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -46,8 +44,6 @@ final class HTTPSenderInternal implements HTTPSender {
 
     Vector<InternalHTTPConnection<InternalHTTPResponse>> connections = new Vector<InternalHTTPConnection<InternalHTTPResponse>>();
 
-    Queue<InternalHTTPResponse> requestQueue = new LinkedList<InternalHTTPResponse>();
-
     /** If true, the server supports keep-alive connections; if false, it responded with
      * Connection: close.  If null, we havn't received a response yet, so we don't know. */
     private Boolean supportsKeepAlive = null;
@@ -68,7 +64,6 @@ final class HTTPSenderInternal implements HTTPSender {
 
             connectionsToDestroy = connections;
             connections = null;
-            requestQueue.clear();
         }
 
         for(InternalHTTPConnection<InternalHTTPResponse> connection: connectionsToDestroy) {
@@ -185,41 +180,12 @@ final class HTTPSenderInternal implements HTTPSender {
             connections.remove(connectionToRelease);
             connectionToRelease = null;
         }
-
-        // If a request is queued, start it using the same connection.
-        InternalHTTPResponse nextInQueue = requestQueue.poll();
-        if(nextInQueue != null) {
-            // LOG.log(Level.WARNING, "Starting previously queued packet");
-
-            // Start the next request in the queue.
-            nextInQueue.sendOrQueueRequest();
-        }
     }
 
     synchronized InternalHTTPConnection<InternalHTTPResponse> getFirstConnection() {
         if(connections.size() == 0)
             return null;
         return connections.get(0);
-    }
-
-    /**
-     * Determine the maximum number of connections to make to the server simultaneously.
-     * If -1, no connection limit is enforced.
-     */
-    int getMaxConnections(CMSessionParams params) {
-        // If we havn't yet determined keepalive support, only make one connection.
-        // This requires us to finish the session creation request and receive its
-        // response before deciding to open any more connections.
-        if(supportsKeepAlive == null)
-            return 1;
-
-        // If keepalive support is available, only make one persistent connection.
-        if(supportsKeepAlive)
-            return 1;
-
-        // Otherwise, the maximum number of requests is limited only by the 'requests'
-        // session parameter, which is handled by BOSHClient.  Place no limit here.
-        return -1;
     }
 
     final class InternalHTTPResponse implements HTTPResponse, InternalHTTPRequestBase {
@@ -260,14 +226,13 @@ final class HTTPSenderInternal implements HTTPSender {
             this.params = params;
             this.requestData = requestData;
 
-            sendOrQueueRequest();
+            sendRequest();
         }
 
         /**
-         * Send the request over an existing connection, create a new connection, or
-         * queue the request to be sent in the future.
+         * Send the request over an existing connection or create a new connection.
          */
-        void sendOrQueueRequest() {
+        void sendRequest() {
             synchronized(HTTPSenderInternal.this) {
                 if(connection != null)
                     throw new IllegalStateException("Request already sent");
@@ -287,17 +252,6 @@ final class HTTPSenderInternal implements HTTPSender {
                     }
                     // LOG.log(Level.WARNING, "No connection took our packet");
                 }
-
-                // If we already have too many connections, don't start another.
-                int maxConnections = getMaxConnections(params);
-                if(maxConnections != -1 && connections.size() >= maxConnections) {
-                    // We already have too many connections, so queue the request.
-                    // LOG.log(Level.WARNING, "Queueing packet");
-                    requestQueue.add(this);
-                    return;
-                }
-
-                // LOG.log(Level.WARNING, "Starting a new connection");
 
                 SocketFactory socketFactory = null;
                 if(cfg.getURI().getScheme().equals("http")) {
