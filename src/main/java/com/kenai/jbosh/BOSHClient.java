@@ -553,12 +553,25 @@ public final class BOSHClient {
                     pendingRequestAcks.add(request);
                 }
             }
-            HTTPResponse resp = httpSender.send(params, request);
-            exch = new HTTPExchange(request, resp);
-            exchanges.add(exch);
-            notEmpty.signalAll();
+            exch = createExchangeAndSend(request);
         } finally {
         }
+        return exch;
+    }
+
+    /**
+     * Send the given request, and add it to the list of active exchanges.
+     *
+     * @param request the request to send
+     * @return the created exchange
+     */
+    private HTTPExchange createExchangeAndSend(AbstractBody request) {
+        assertLocked();
+
+        HTTPResponse response = httpSender.send(cmParams, request);
+        HTTPExchange exch = new HTTPExchange(request, response);
+        exchanges.add(exch);
+        notEmpty.signalAll();
         return exch;
     }
 
@@ -1180,10 +1193,7 @@ public final class BOSHClient {
             if (toResend != null) {
                 resent = new ArrayList<HTTPExchange>();
                 for (AbstractBody resendReq: toResend) {
-                    HTTPResponse response = httpSender.send(params, resendReq);
-                    HTTPExchange resendExch = new HTTPExchange(resendReq, response);
-                    exchanges.add(resendExch);
-                    resent.add(resendExch);
+                    resent.add(createExchangeAndSend(resendReq));
                 }
                 notEmpty.signalAll();
             }
