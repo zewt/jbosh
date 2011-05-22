@@ -279,8 +279,7 @@ public final class BOSHClient {
     private Long responseAck = Long.valueOf(-1L);
 
     /**
-     * List of requests which have been made but not yet acknowledged.  This
-     * list remains unpopulated if the CM is not acking requests.
+     * List of requests which have been made but not yet acknowledged.
      */
     private List<ComposableBody> pendingRequestAcks =
             new ArrayList<ComposableBody>();
@@ -514,6 +513,10 @@ public final class BOSHClient {
                 if (cmParams == null)
                     return null;
 
+                // Don't send empty requests while the connection is lost.
+                if (connectionRecoverablyLost)
+                    return null;
+
                 int wantedExchanges;
                 if (cmParams.getWait().getValue() == 0 || cmParams.getHold().getValue() == 0) {
                     // This is a polling session.
@@ -549,11 +552,9 @@ public final class BOSHClient {
                 request = applySessionCreationRequest(rid, body);
             } else {
                 request = applySessionData(rid, body);
-                if (cmParams.isAckingRequests()) {
-                    pendingRequestAcks.add(request);
-                }
             }
             exch = createExchangeAndSend(request);
+            pendingRequestAcks.add(request);
         } finally {
         }
         return exch;
@@ -664,6 +665,7 @@ public final class BOSHClient {
      * associated with the session.
      */
     public void close() {
+        assertUnlocked();
         dispose(new BOSHException("Session explicitly closed by caller"));
     }
 
@@ -739,6 +741,111 @@ public final class BOSHClient {
     }
 
     /**
+     * Returns true if the connection is lost, and can be reestablished.
+     */
+    public boolean isRecoverableConnectionLoss() {
+        return connectionRecoverablyLost;
+    }
+    private boolean connectionRecoverablyLost = false;
+
+
+    /**
+     * After an unexpected disconnection, attempt to reestablish the connnection.
+     */
+    public void attemptReconnection() throws BOSHException {
+        assertUnlocked();
+
+        lock.lock();
+        List<ComposableBody> requestsToResend;
+        try {
+            // If the connection is unrecoverably lost, fail.  If a client calls here
+            // without checking whether the connection can actually be reestablished,
+            // he's likely to sit around waiting for a reconnection that will never happen.
+            if(!isWorking())
+                throw new BOSHException("Disconnection is unrecoverable");
+
+            // If the connection isn't actually lost, stop.
+            if(!connectionRecoverablyLost)
+                return;
+
+            // Once we attempt to resend the request, we're no longer a lost connection.
+            // If that request fails, we'll reenter connectionRecoverablyLost.
+            connectionRecoverablyLost = false;
+
+            // In order for us to have been disconnected, we must have attempted to send at
+            // least one packet, and failed to receive a response.  This means that we're
+            // guaranteed to have at least one request in pendingResponseAcks.
+            if(pendingRequestAcks.isEmpty())
+                throw new IllegalStateException("No request acks pending while disconnected");
+
+            if(ASSERTIONS) {
+                // We should never be able to have more requests pending than we can send
+                // at once.  This invariant guarantees that the request batch we send below
+                // never exceeds the number of requests we can send at a time.  Before cmParams
+                // is set, we should never have more than one request in the air.
+                int maxRequests = -1;
+                if(cmParams == null) {
+                    maxRequests = 1;
+                } else {
+                    AttrRequests requests = cmParams.getRequests();
+                    if(requests != null)
+                        maxRequests = requests.intValue();
+                }
+
+                if(maxRequests != -1) {
+                    if(pendingRequestAcks.size() > maxRequests) {
+                        throw new AssertionError("More requests pending than we can send at once (" +
+                                pendingRequestAcks.size() + " > " + maxRequests);
+                    }
+                }
+            }
+
+            // Resend all requests that we havn't seen a response for.  If the server
+            // doesn't support request acks, this is all requests that we havn't received
+            // a response to.
+            requestsToResend = new ArrayList<ComposableBody>(pendingRequestAcks.size());
+            requestsToResend.addAll(pendingRequestAcks);
+
+            for(ComposableBody req: requestsToResend) {
+                createExchangeAndSend(req);
+            }
+        } finally {
+            lock.unlock();
+        }
+
+        for(ComposableBody req: requestsToResend)
+            fireRequestSent(req);
+    }
+
+    private void connectionLost(final Throwable cause) {
+        assertUnlocked();
+
+        lock.lock();
+        try {
+            // If the connection was already lost, don't set it to recoverable.
+            if(!isWorking())
+                return;
+
+            if(connectionRecoverablyLost)
+                return;
+            connectionRecoverablyLost = true;
+
+            // All exchanges in the air have failed.
+            clearEmptyRequest();
+
+            for(HTTPExchange exch: exchanges)
+                exch.getHTTPResponse().abort();
+
+            exchanges.clear();
+            notFull.signalAll();
+        } finally {
+            lock.unlock();
+        }
+
+        fireConnectionClosedOnError(cause);
+    }
+
+    /**
      * Destroy this session.
      *
      * @param cause the reason for the session termination, or {@code null}
@@ -800,6 +907,7 @@ public final class BOSHClient {
             clearEmptyRequest();
             exchanges = null;
             cmParams = null;
+            connectionRecoverablyLost = false;
             pendingResponseAcks = null;
             pendingRequestAcks = null;
             notEmpty.signalAll();
@@ -882,6 +990,10 @@ public final class BOSHClient {
             // block if we're waiting for a response to our first request
             return exchanges.isEmpty();
         }
+
+        // Block while the connection is lost.
+        if(connectionRecoverablyLost)
+            return false;
 
         AttrRequests requests = cmParams.getRequests();
         if (requests == null) {
@@ -1134,7 +1246,7 @@ public final class BOSHClient {
             respCode = resp.getHTTPStatus();
         } catch (BOSHException boshx) {
             LOG.log(Level.FINEST, "Could not obtain response", boshx);
-            dispose(boshx);
+            connectionLost(boshx);
             return;
         } catch (InterruptedException intx) {
             LOG.log(Level.FINEST, INTERRUPTED, intx);
@@ -1346,7 +1458,9 @@ public final class BOSHClient {
                 try {
                     sentExchange = sendInternal(ComposableBody.builder().build(), !wakeFromPause);
                 } catch (BOSHException boshx) {
-                    dispose(boshx);
+                    lock.unlock();
+                    connectionLost(boshx);
+                    lock.lock();
                     return;
                 }
 
@@ -1467,10 +1581,6 @@ public final class BOSHClient {
             final AbstractBody req, final AbstractBody resp) {
         assertLocked();
         
-        if (!cmParams.isAckingRequests()) {
-            return;
-        }
-
         // Don't remove packets from the buffer if the CM is reporting a lost response.
         if (resp.getAttribute(Attributes.REPORT) != null) {
             return;
