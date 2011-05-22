@@ -23,6 +23,8 @@ import static junit.framework.Assert.assertNull;
 import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,7 +50,23 @@ public class TestReconnection extends AbstractBOSHTest {
         }
     };
 
+    class RequestListener implements BOSHClientResponseListener {
+        Queue<BOSHMessageEvent> eventsReceived = new LinkedList<BOSHMessageEvent>();
+
+        public synchronized void responseReceived(final BOSHMessageEvent event) {
+            eventsReceived.add(event);
+            this.notify();
+        }
+
+        public synchronized BOSHMessageEvent waitForEvent() throws InterruptedException {
+            while(eventsReceived.isEmpty())
+                wait();
+            return eventsReceived.remove();
+        }
+    };
+
     DisconnectionListener disc = new DisconnectionListener();
+    RequestListener reqListener = new RequestListener();
 
     /**
      * Accept a connection, close it immediately, and return the RID of the
@@ -347,5 +365,58 @@ public class TestReconnection extends AbstractBOSHTest {
             fail("Expected RID " + expectedRid1 + " and " + expectedRid2 +
                     ", got " + rid1 + ", " + rid2);
         }
+    }
+
+    /**
+     * Verify that outstanding requests are tracked and reported correctly during
+     * recoverable errors, when request acks are enabled.
+     */
+    @Test(timeout=5000)
+    public void testPacketRetransmissionAfterAck() throws Exception {
+        logTestStart();
+        session.addBOSHClientConnListener(disc);
+        session.addBOSHClientResponseListener(reqListener);
+
+        // Open the connection with ACK enabled.
+        session.send(ComposableBody.builder().build());
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req)
+            .setAttribute(Attributes.ACK, req.getAttribute(Attributes.RID))
+            .build();
+        conn.sendResponse(scr);
+        reqListener.waitForEvent();
+
+        // This test requires at least three concurrent requests.
+        int requests = Integer.parseInt(req.getAttribute(Attributes.REQUESTS, "3"));
+        assertTrue("Insufficient requests allowed for this test", requests >= 3);
+
+        // Send three requests.
+        ComposableBody packet1 = ComposableBody.builder().build();
+        ComposableBody packet2 = ComposableBody.builder().build();
+        ComposableBody packet3 = ComposableBody.builder().build();
+        session.send(packet1);
+        session.send(packet2);
+        session.send(packet3);
+
+        // Reply to the first request, acknowledging the second.
+        StubConnection conn1 = cm.awaitConnection();
+        StubConnection conn2 = cm.awaitConnection();
+        conn1.sendResponse(ComposableBody.builder()
+                .setAttribute(Attributes.SID, conn1.getRequest().getBody().getAttribute(Attributes.SID))
+                .setAttribute(Attributes.ACK, conn2.getRequest().getBody().getAttribute(Attributes.RID))
+                .build());
+
+        // Close the second connection without replying to it.
+        conn2.closeConnection();
+
+        reqListener.waitForEvent();
+
+        // Wait for the client to see the disconnection.
+        BOSHClientConnEvent discEvent = disc.waitForDisconnection();
+        assertTrue(session.isRecoverableConnectionLoss());
+
+        // The recoverable disconnection event includes only the third, unacknowleded request.
+        assertEquals(1, discEvent.getOutstandingRequests().size());
     }
 }
