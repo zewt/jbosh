@@ -17,26 +17,26 @@
 package com.kenai.jbosh;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.fail;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.AsynchronousCloseException;
-import java.util.Vector;
 
 import javax.net.ServerSocketFactory;
+import javax.net.SocketFactory;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.kenai.jbosh.InternalHTTPConnection.ResponseData;
 
 public class InternalHTTPConnectionTest {
     public InternalHTTPConnectionTest() {} 
@@ -142,7 +142,7 @@ public class InternalHTTPConnectionTest {
     /**
      * Verify that AsynchronousCloseException is thrown when a connection is aborted.
      */
-    @Test(timeout=5000, expected=AsynchronousCloseException.class)
+    @Test(timeout=5000, expected=java.net.SocketException.class)
     public void testConnectionAbortError() throws IOException {
         InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
 
@@ -274,6 +274,38 @@ public class InternalHTTPConnectionTest {
         serverOutput.close();
 
         // Wait for the complete response.
+        conn.waitForNextResponse();
+    }
+
+    class TestIOException extends IOException { };
+    /* This SocketFactory throws an error on all methods. */
+    SocketFactory errorFactory = new SocketFactory() {
+        public Socket createSocket() throws IOException { throw new TestIOException(); }
+        public Socket createSocket(String host, int port) throws IOException {
+            throw new TestIOException();
+        }
+        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+            throw new TestIOException();
+        }
+        public Socket createSocket(InetAddress host, int port) throws IOException {
+            throw new TestIOException();
+        }
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException
+        {
+            throw new TestIOException();
+        }
+    };
+
+    /**
+     * Test error handling when socket creation fails.
+     */
+    @Test(timeout=5000, expected=TestIOException.class)
+    public void testSocketCreationErrorHandling() throws IOException {
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, errorFactory, null);
+        byte[] data = "request data".getBytes("UTF-8");
+        conn.sendRequest(data, new Request());
+
+        // waitForNextResponse throws the TestIOException that was thrown by errorFactory.
         conn.waitForNextResponse();
     }
 

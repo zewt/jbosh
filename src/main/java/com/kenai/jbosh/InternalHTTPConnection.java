@@ -132,8 +132,15 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             if(request == null)
                 throw new RuntimeException("No requests are outstanding");
 
-            if(socket.closed)
-                throw new AsynchronousCloseException();
+            if(socket.closed) {
+                // If no error is set, then the socket was closed explicitly with a call
+                // to close(); throw AsynchronousCloseException.
+                IOException error = socket.getError();
+                if(error != null)
+                    throw error;
+                else
+                    throw new AsynchronousCloseException();
+            }
         }
 
         ResponseData response = readRequest();
@@ -503,6 +510,7 @@ class NonBlockingSocket {
             // the error and it'll be returned from the first close().
             error = e;
             closed = true;
+            return;
         }
         
         Runnable r = new Runnable() {
@@ -557,6 +565,12 @@ class NonBlockingSocket {
         }
 
         return inputStream.read(inputBuffer, inputBufferAvail, bytesToRead);
+    }
+
+    /* If the connection was closed due to an error, return the IOException that
+     * caused it.  If the connection was closed explicitly by close(), returns null. */
+    public IOException getError() {
+        return error;
     }
 
     /** Close the connection, discarding any data not yet delivered. */
