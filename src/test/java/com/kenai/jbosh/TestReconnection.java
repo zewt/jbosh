@@ -312,6 +312,7 @@ public class TestReconnection extends AbstractBOSHTest {
         // Unsuccessfully attempt to reconnect and wait for the next disconnection event.
         session.attemptReconnection();
         cm.awaitConnection().closeConnection();
+        cm.awaitConnection().closeConnection();
         discEvent = disc.waitForDisconnection();
 
         // The disconnection event still includes both requests.
