@@ -25,13 +25,6 @@ import javax.net.ssl.SSLSocket;
  * <p>
  * Supports sending nonblocking requests, blocking responses, and asynchronous
  * socket opening.
- * <p>
- * XXX: We don't suppory proxies.  That can be implemented with a SocketFactory.
- * There are Apache-licensed implementations for SOCKS4, SOCKS5 and HTTP proxies here:
- * http://svn.igniterealtime.org/svn/repos/smack/trunk/source/org/jivesoftware/smack/proxy/
- * I'd recommend leaving that to the caller and removing proxy support at this level;
- * if the caller supports direct XMPP he's likely to have his own proxy-handling code anyway,
- * so it would result in duplicate code.  
  */
 class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
    
