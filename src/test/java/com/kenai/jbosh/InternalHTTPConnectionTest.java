@@ -90,7 +90,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000)
     public void testBasic() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
         
         // Creating InternalHTTPConnection will connect asynchronously.
         acceptConnection();
@@ -128,7 +128,7 @@ public class InternalHTTPConnectionTest {
         // Close the socket, since we want the request to fail.
         serverSocket.close();
         
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
 
         // Send a request.  The request should have failed, so this is a no-op.
         byte[] data = "request data".getBytes("UTF-8");
@@ -144,7 +144,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000, expected=java.net.SocketException.class)
     public void testConnectionAbortError() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
 
         // Send a request.
         byte[] data = "request data".getBytes("UTF-8");
@@ -165,7 +165,7 @@ public class InternalHTTPConnectionTest {
     public void testThreadShutdown() throws IOException {
         int threadsBefore = Thread.activeCount();
         for(int i = 0; i < 50; ++i) {
-            InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+            InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
             conn.abort();
         }
         int threadsAfter = Thread.activeCount();
@@ -180,7 +180,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000)
     public void testHeaderParsing() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
         
         // Creating InternalHTTPConnection will connect asynchronously.
         acceptConnection();
@@ -216,7 +216,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000)
     public void testNoContentLength() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
         
         // Creating InternalHTTPConnection will connect asynchronously.
         acceptConnection();
@@ -251,7 +251,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(expected=IOException.class)
     public void testIncompleteResponse() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
         
         // Creating InternalHTTPConnection will connect asynchronously.
         acceptConnection();
@@ -301,7 +301,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000, expected=TestIOException.class)
     public void testSocketCreationErrorHandling() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, errorFactory, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, errorFactory, null);
         byte[] data = "request data".getBytes("UTF-8");
         conn.sendRequest(data, new Request());
 
@@ -314,7 +314,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000)
     public void testChunked() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
         
         // Creating InternalHTTPConnection will connect asynchronously.
         acceptConnection();

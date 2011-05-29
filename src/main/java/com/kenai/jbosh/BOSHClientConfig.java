@@ -16,6 +16,7 @@
 
 package com.kenai.jbosh;
 
+import java.net.InetAddress;
 import java.net.URI;
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLContext;
@@ -66,6 +67,11 @@ public final class BOSHClientConfig {
     private final int proxyPort;
 
     /**
+     * Server address.
+     */
+    private InetAddress inetAddress;
+
+    /**
      * SSL context.
      */
     private final SSLContext sslContext;
@@ -106,6 +112,7 @@ public final class BOSHClientConfig {
         private String bLang;
         private String bRoute;
         private String bProxyHost;
+        private InetAddress bInetAddress;
         private int bProxyPort;
         private SSLContext bSSLContext;
         private SocketFactory bSocketFactory;
@@ -163,6 +170,7 @@ public final class BOSHClientConfig {
             result.bRoute = cfg.getRoute();
             result.bProxyHost = cfg.getProxyHost();
             result.bProxyPort = cfg.getProxyPort();
+            result.bInetAddress = cfg.getInetAddress();
             result.bSSLContext = cfg.getSSLContext();
             result.bSocketFactory = cfg.getSocketFactory();
             result.bSSLConnector = cfg.getSSLConnector();
@@ -259,6 +267,20 @@ public final class BOSHClientConfig {
             }
             bProxyHost = hostName;
             bProxyPort = port;
+            return this;
+        }
+
+        /**
+         * Specify the IP address of the server to connect to.  If {@code null}, the address
+         * will be looked up normally.
+         * <p>
+         * The server hostname must still be specified.
+         *
+         * @param addr server address
+         * @return builder instance
+         */
+        public Builder setInetAddress(InetAddress addr) {
+            bInetAddress = addr;
             return this;
         }
 
@@ -364,6 +386,7 @@ public final class BOSHClientConfig {
                     bRoute,
                     bProxyHost,
                     port,
+                    bInetAddress,
                     bSSLContext,
                     bSocketFactory,
                     bSSLConnector,
@@ -398,6 +421,7 @@ public final class BOSHClientConfig {
             final String cRoute,
             final String cProxyHost,
             final int cProxyPort,
+            final InetAddress cInetAddress,
             final SSLContext cSSLContext,
             final SocketFactory cSocketFactory,
             final SSLConnector cSSLConnector,
@@ -409,6 +433,7 @@ public final class BOSHClientConfig {
         route = cRoute;
         proxyHost = cProxyHost;
         proxyPort = cProxyPort;
+        inetAddress = cInetAddress;
         sslContext = cSSLContext;
         socketFactory = cSocketFactory;
         sslConnector = cSSLConnector;
@@ -478,6 +503,16 @@ public final class BOSHClientConfig {
      */
     public int getProxyPort() {
         return proxyPort;
+    }
+
+    /**
+     * Get the {@link InetAddress} of the server, if specified.  If not specified, the
+     * address will be looked up.
+     *
+     * @return address, or null if not specified
+     */
+    public InetAddress getInetAddress() {
+        return inetAddress;
     }
 
     /**

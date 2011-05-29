@@ -67,12 +67,12 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
     /** Prepare to connect to the scheme, host and port specified in uri.  The
      * other fields of uri are unused. */
-    InternalHTTPConnection(URI uri, SocketFactory factory, SSLConnector sslConnector) {
+    InternalHTTPConnection(URI uri, InetAddress addr, SocketFactory factory, SSLConnector sslConnector) {
         if(factory == null)
             factory = SocketFactory.getDefault();
         if(sslConnector == null)
             sslConnector = SSLConnector.getDefault();
-        socket = new NonBlockingSocket(uri, factory, sslConnector);
+        socket = new NonBlockingSocket(uri, addr, factory, sslConnector);
     }
 
     Thread thread = null;
@@ -481,6 +481,7 @@ class NonBlockingSocket {
         Logger.getLogger(NonBlockingSocket.class.getName());
 
     private URI uri;
+    private InetAddress inetAddress;
     private Thread thread;
     private IOException error;
     private Socket socket;
@@ -492,8 +493,9 @@ class NonBlockingSocket {
     /** Open a socket using the given factory to the specified URI.  Returns
      * immediately.  If a connection error occurs, it will be reported on the first
      * call to read(). */
-    public NonBlockingSocket(URI uri, SocketFactory factory, SSLConnector sslConnector) {
+    public NonBlockingSocket(URI uri, InetAddress inetAddress, SocketFactory factory, SSLConnector sslConnector) {
         this.uri = uri;
+        this.inetAddress = inetAddress;
         this.sslConnector = sslConnector;
 
         try {
@@ -629,13 +631,15 @@ class NonBlockingSocket {
         OutputStream outputStream = null;
         
         try {
-            // Look up the host.  XXX: This isn't cancellable, so calls to close()
-            // while we're doing this will block until the lookup finishes or times
-            // out.  The only good solution here is dnsjava, which is cancellable.
-            InetAddress addr = InetAddress.getByName(uri.getHost());
+            if(inetAddress == null) {
+                // Look up the host.  Note that this isn't cancellable; if the caller wants
+                // all connections to be immediately cancellable, inetAddress must be specified
+                // in advance.
+                inetAddress = InetAddress.getByName(uri.getHost());
+            }
 
             // Open the connection.
-            socket.connect(new InetSocketAddress(addr, uri.getPort()));
+            socket.connect(new InetSocketAddress(inetAddress, uri.getPort()));
 
             // If this is an HTTPS connection, attach TLS.
             if(uri.getScheme().equalsIgnoreCase("https")) {

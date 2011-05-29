@@ -266,7 +266,8 @@ final class HTTPSenderInternal implements HTTPSender {
 
                 // Creating the InternalHTTPConnection will never block, so this is safe to call
                 // while synchronized.
-                connection = new InternalHTTPConnection<InternalHTTPResponse>(cfg.getURI(), cfg.getSocketFactory(), sslConnector);
+                connection = new InternalHTTPConnection<InternalHTTPResponse>(cfg.getURI(),
+                        cfg.getInetAddress(), cfg.getSocketFactory(), sslConnector);
                 connections.add(connection);
 
                 // Send the request over the connection we just created.
