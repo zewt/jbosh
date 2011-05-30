@@ -192,9 +192,9 @@ final class HTTPSenderInternal implements HTTPSender {
         /** The request to be sent. */
         byte[] requestData;
 
-        /* The connection this response was sent over, or null if this request has not yet been
-         * sent. */
-        InternalHTTPConnection<InternalHTTPResponse> connection;
+        /* The connection this response was sent over, or null if this request has
+         * been aborted. */
+        private InternalHTTPConnection<InternalHTTPResponse> connection;
 
         /** Exception to throw when the response data is attempted to be accessed,
          * or {@code null} if no exception should be thrown. */
@@ -370,13 +370,6 @@ final class HTTPSenderInternal implements HTTPSender {
                 if(body != null)
                     return;
 
-                while(this.connection == null) {
-                    try {
-                        HTTPSenderInternal.this.wait();
-                    } catch(InterruptedException e) {
-                        throw new BOSHException("Interrupted");
-                    }
-                }
                 connection = this.connection;
             }
 
