@@ -413,7 +413,6 @@ final class HTTPSenderInternal implements HTTPSender {
                 supportsKeepAlive = false;
             else
                 supportsKeepAlive = true;
-            supportsKeepAlive = false;
 
             // Tell HTTPSenderInternal that we're done.  Don't call this with this object locked.
             InternalHTTPConnection<InternalHTTPResponse> finishedConnection = null;
