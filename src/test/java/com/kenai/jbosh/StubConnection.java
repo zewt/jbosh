@@ -40,12 +40,15 @@ public class StubConnection {
     private final AtomicReference<StubResponse> resp =
             new AtomicReference<StubResponse>();
     private boolean closeConnection = false;
+    private StubCM cm;
 
     ///////////////////////////////////////////////////////////////////////////
     // Constructor:
 
     StubConnection(
+            final StubCM cm,
             final IHttpExchange exch) {
+        this.cm = cm;
         req = new StubRequest(exch.getRequest());
         exchange = exch;
     }
@@ -71,6 +74,8 @@ public class StubConnection {
             closeConnection = true;
             notifyAll();
         }
+
+        cm.notifyResponseSent(this);
     }
 
     public void sendResponseWithStatus(
@@ -130,12 +135,18 @@ public class StubConnection {
         synchronized(this) {
             notifyAll();
         }
+        
+        cm.notifyResponseSent(this);
     }
 
     ///////////////////////////////////////////////////////////////////////////
     // Package methods:
 
-    public void awaitResponse() {
+    public boolean hasResponse() {
+        return resp.get() != null || closeConnection;
+    }
+
+    private void awaitResponse() {
         synchronized(this) {
             while (resp.get() == null && !closeConnection) {
                 try {

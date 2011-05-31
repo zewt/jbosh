@@ -49,29 +49,104 @@ public class StubCM {
     private final Condition notEmpty = lock.newCondition();
     private final List<StubConnection> list = new ArrayList<StubConnection>();
     private final List<StubConnection> all = new ArrayList<StubConnection>();
+    private final List<StubConnection> awaitingResponse = new ArrayList<StubConnection>();
     private final Set<StubCMListener> listeners =
             new CopyOnWriteArraySet<StubCMListener>();
 
+    private Thread responseThread;
+    
     ///////////////////////////////////////////////////////////////////////////
     // Classes:
+    class ResponseThread extends Thread {
+        private List<StubConnection> getWaitingResponses() {
+            List<StubConnection> gotResponse = new ArrayList<StubConnection>();
+            for(StubConnection conn: awaitingResponse) {
+                if(conn.hasResponse())
+                    gotResponse.add(conn);
+            }
+
+            return gotResponse;
+        }
+
+        public void run() {
+            lock.lock();
+            try {
+                while(!awaitingResponse.isEmpty()) {
+                    List<StubConnection> gotResponse = getWaitingResponses();
+                    if(!awaitingResponse.isEmpty() && gotResponse.isEmpty()) {
+                        try {
+                            notEmpty.await();
+                        } catch(InterruptedException e) {
+                            return;
+                        }
+                        continue;
+                    }
+                    
+                    for(StubConnection conn: gotResponse) {
+                        awaitingResponse.remove(conn);
+
+                        fireCompleted(conn);
+                        try {
+                            conn.executeResponse();
+                        } catch(IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+    };
+
+    /** StubConnection notifies us that it either has a response ready, or has been closed. */
+    void notifyResponseSent(StubConnection conn) {
+        lock.lock();
+        try {
+            notEmpty.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Asysnchronously wait for and send a response on conn. */
+    private void waitForResponseAsync(StubConnection conn) {
+        boolean wasEmpty = awaitingResponse.isEmpty();
+        awaitingResponse.add(conn);
+
+        // If this isn't the first item being added, the thread is already running.
+        if(!wasEmpty)
+            return;
+        
+        if(responseThread != null) {
+            try {
+                responseThread.join();
+            } catch(InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+            
+        responseThread = new ResponseThread();
+        responseThread.setName("Response thread");
+        responseThread.start();
+    }
 
     private class ReqHandler implements IHttpRequestHandler {
         public void onRequest(IHttpExchange exchange)
                 throws IOException, BadMessageException {
             try {
-                StubConnection conn = new StubConnection(exchange);
+                StubConnection conn = new StubConnection(StubCM.this, exchange);
                 fireReceived(conn);
                 lock.lock();
                 try {
                     list.add(conn);
                     all.add(conn);
+                    waitForResponseAsync(conn);
                     notEmpty.signalAll();
                 } finally {
                     lock.unlock();
                 }
-                conn.awaitResponse();
-                fireCompleted(conn);
-                conn.executeResponse();
             } catch (Throwable thr) {
                 LOG.log(Level.WARNING, "Uncaught throwable", thr);
             }
