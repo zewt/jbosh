@@ -224,7 +224,9 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
         // We know the amount of data in the response body; read it.
         if(contentLength != -1) {
             response.data = new byte[contentLength];
-            readDataBlocking(response.data, contentLength, false);
+            int bytesRead = readDataBlocking(response.data, contentLength, false);
+            if(bytesRead < contentLength)
+                throw new IOException("Socket closed");
         } else if(response.getResponseHeader("Transfer-Encoding").equals("chunked")) {
             response.data = readChunkedBlocking();
         } else {

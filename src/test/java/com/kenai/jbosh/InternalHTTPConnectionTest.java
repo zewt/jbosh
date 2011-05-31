@@ -266,7 +266,7 @@ public class InternalHTTPConnectionTest {
         // Send a response.
         String response =
             "HTTP/1.1 200 OK\r\n" +
-            "Content-Length: 9999" +
+            "Content-Length: 9999\r\n" +
             "\r\n" +
             "response data";
         serverOutput.write(response.getBytes("UTF-8"));
