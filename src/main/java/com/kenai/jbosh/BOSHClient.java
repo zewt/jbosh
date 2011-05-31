@@ -217,12 +217,6 @@ public final class BOSHClient {
     private final HTTPSender httpSender = new HTTPSenderInternal();
 
     /**
-     * Storage for test hook implementation.
-     */
-    private final AtomicReference<ExchangeInterceptor> exchInterceptor =
-            new AtomicReference<ExchangeInterceptor>();
-
-    /**
      * Request ID sequence to use for the session.
      */
     private final RequestIDSequence requestIDSeq = new RequestIDSequence();
@@ -290,31 +284,6 @@ public final class BOSHClient {
      * paused.
      */
     private boolean sessionPaused = false;
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Classes:
-
-    /**
-     * Class used in testing to dynamically manipulate received exchanges
-     * at test runtime.
-     */
-    abstract static class ExchangeInterceptor {
-        /**
-         * Limit construction.
-         */
-        ExchangeInterceptor() {
-            // Empty;
-        }
-
-        /**
-         * Hook to manipulate an HTTPExchange as is is about to be processed.
-         *
-         * @param exch original exchange that would be processed
-         * @return replacement exchange instance, or {@code null} to skip
-         *  processing of this exchange
-         */
-        abstract HTTPExchange interceptExchange(final HTTPExchange exch);
-    }
 
     ///////////////////////////////////////////////////////////////////////////
     // Constructors:
@@ -705,16 +674,6 @@ public final class BOSHClient {
             lock.unlock();
         }
     }
-
-    /**
-     * Test method used to forcibly discard next exchange.
-     *
-     * @param interceptor exchange interceptor
-     */
-    void setExchangeInterceptor(final ExchangeInterceptor interceptor) {
-        exchInterceptor.set(interceptor);
-    }
-
 
     ///////////////////////////////////////////////////////////////////////////
     // Private methods:
@@ -1165,27 +1124,6 @@ public final class BOSHClient {
                 exch = nextExchange();
                 if (exch == null) {
                     break;
-                }
-
-                // Test hook to manipulate what the client sees:
-                ExchangeInterceptor interceptor = exchInterceptor.get();
-                if (interceptor != null) {
-                    HTTPExchange newExch = interceptor.interceptExchange(exch);
-                    if (newExch == null) {
-                        LOG.log(Level.FINE, "Discarding exchange on request "
-                                + "of test hook: RID="
-                                + exch.getRequest().getAttribute(
-                                    Attributes.RID));
-                        lock.lock();
-                        try {
-                            exchanges.remove(exch);
-                            notFull.signalAll();
-                        } finally {
-                            lock.unlock();
-                        }
-                        continue;
-                    }
-                    exch = newExch;
                 }
 
                 processExchange(exch);

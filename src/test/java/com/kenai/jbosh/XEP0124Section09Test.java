@@ -16,8 +16,6 @@
 
 package com.kenai.jbosh;
 
-import com.kenai.jbosh.BOSHClient.ExchangeInterceptor;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 import static junit.framework.Assert.*;
 
@@ -172,18 +170,6 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
     @Test(timeout=5000)
     public void clientAcksHighestRID() throws Exception {
         logTestStart();
-        final AtomicInteger counter = new AtomicInteger();
-        session.setExchangeInterceptor(new ExchangeInterceptor() {
-            @Override
-            HTTPExchange interceptExchange(HTTPExchange exch) {
-                int num = counter.incrementAndGet();
-                if (num == 2) {
-                    return null;
-                } else {
-                    return exch;
-                }
-            }
-        });
 
         // Initiate a session
         session.send(ComposableBody.builder().build());
@@ -191,6 +177,7 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         AbstractBody body = conn.getRequest().getBody();
         String val = body.getAttribute(Attributes.ACK);
         String initialRID = body.getAttribute(Attributes.RID);
+
         AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         assertNotNull("initial ack attribute presence", val);
@@ -200,9 +187,6 @@ public class XEP0124Section09Test extends AbstractBOSHTest {
         // Send another request and verify no ack
         session.send(ComposableBody.builder().build());
         conn = cm.awaitConnection();
-        conn.sendResponse(ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .build());
         body = conn.getRequest().getBody();
         val = body.getAttribute(Attributes.ACK);
         assertNull("second request should not have an ack", val);
