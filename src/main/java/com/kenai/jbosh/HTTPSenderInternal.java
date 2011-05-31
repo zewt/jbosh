@@ -174,11 +174,18 @@ final class HTTPSenderInternal implements HTTPSender {
             throw new IllegalStateException("Connection ended successfully, but without a connection");
 
         // If the connection doesn't support keepalive, shut down the connection, if any.
-        if(connectionToRelease != null && (supportsKeepAlive == null || !supportsKeepAlive)) {
-            // LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
-            connectionToRelease.abort();
-            connections.remove(connectionToRelease);
-            connectionToRelease = null;
+        if(connectionToRelease != null) {
+            boolean shutdown = connectionToRelease.isAborted();
+            if(supportsKeepAlive == null || !supportsKeepAlive)
+                shutdown = true;
+
+            // If this connection is not reusable, release it.
+            if(shutdown) {
+                // LOG.log(Level.WARNING, "Connection closed on server not supporting keepalive; shutting down connection");
+                connectionToRelease.abort();
+                connections.remove(connectionToRelease);
+                connectionToRelease = null;
+            }
         }
     }
 

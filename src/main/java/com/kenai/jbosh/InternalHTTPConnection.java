@@ -32,6 +32,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
         Logger.getLogger(InternalHTTPConnection.class.getName());
 
     NonBlockingSocket socket;
+    private boolean aborted = false;
 
     private Queue<T> outstandingRequests = new LinkedList<T>();
 
@@ -91,11 +92,15 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
      * not yet been received by a call to waitForNextResponse. */
     public int getRequestsOutstanding() { return outstandingRequests.size(); }
 
+    /** Return true if abort() has been called, or the connection failed with an error. */
+    public boolean isAborted() { return aborted; }
+    
     /** Permanently close the connection.  All requests are cancelled, the connection
      * is closed and all further responses will throw AsynchronousCloseException. */
     public void abort() {
         Queue<T> requestsFailed;
         synchronized(this) {
+            aborted = true;
             socket.close();
 
             // If the request failed, all other requests on the same connection have failed as well.
