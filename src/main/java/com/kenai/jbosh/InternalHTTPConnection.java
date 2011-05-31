@@ -166,30 +166,35 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
     }
     
     private ResponseData readRequest() throws IOException {
-        int lastSearchPos = 0;
+        int lastSearchPos = inputBufferPosition;
         String headers = null;
         while(true) {
+            boolean found = false;
             // We have a whole response header if the inputBuffer contains two consecutive
             // CRLFs.  For compatibility and ease of testing, also accept LFLF.
-            for(int i = lastSearchPos; i < inputBufferAvail-3; ++i) {
-                if(inputBuffer[i+0] == '\r' && inputBuffer[i+1] == '\n' &&
+            for(int i = lastSearchPos; i < inputBufferAvail; ++i) {
+                if(i+3 < inputBufferAvail &&
+                   inputBuffer[i+0] == '\r' && inputBuffer[i+1] == '\n' &&
                    inputBuffer[i+2] == '\r' && inputBuffer[i+3] == '\n')
                 {
                     // The headers ends at i, and the response body begins at i+4.
-                    headers = makeString(inputBuffer, 0, i);
+                    headers = makeString(inputBuffer, inputBufferPosition, i - inputBufferPosition);
                     inputBufferPosition = i+4;
+                    found = true;
                     break;
                 }
 
-                if(inputBuffer[i+0] == '\n' && inputBuffer[i+1] == '\n')
+                if(i+1 < inputBufferAvail && 
+                   inputBuffer[i+0] == '\n' && inputBuffer[i+1] == '\n')
                 {
                     // The headers ends at i, and the response body begins at i+2.
-                    headers = makeString(inputBuffer, 0, i);
+                    headers = makeString(inputBuffer, inputBufferPosition, i - inputBufferPosition);
                     inputBufferPosition = i+2;
+                    found = true;
                     break;
                 }
             }
-            if(inputBufferPosition != 0)
+            if(found)
                 break;
 
             // Next time we search, start from where we left off, so searching isn't O(n^2).

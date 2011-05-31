@@ -346,4 +346,49 @@ public class InternalHTTPConnectionTest {
         String responseDataString = new String(responseData.data, "UTF-8");
         assertEquals(responseDataString, "response data");
     }
+
+    /**
+     * Verify receiving multiple responses at once.
+     */
+    @Test
+    public void testPipelinedReceiving() throws IOException {
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, null, null);
+        
+        // Creating InternalHTTPConnection will connect asynchronously.
+        acceptConnection();
+
+        // Send and receive two pipelined requests.
+        byte[] data = "request data".getBytes("UTF-8");
+        conn.sendRequest(data, new Request());
+        readRequestFromClient();
+        conn.sendRequest(data, new Request());
+        readRequestFromClient();
+        
+        // Send both responses together.
+        String response1 =
+            "HTTP/1.1 200 OK\r\n" +
+            "Content-Length: 10\r\n" +
+            "\r\n" +
+            "response 1";
+        String response2 =
+            "HTTP/1.1 200 OK\r\n" +
+            "Content-Length: 10\r\n" +
+            "\r\n" +
+            "response 2";
+        String response = response1 + response2;
+        serverOutput.write(response.getBytes("UTF-8"));
+        serverOutput.flush();
+
+        // Wait for each response.
+        InternalHTTPConnection<Request>.ResponseData responseData1 = conn.waitForNextResponse();
+        InternalHTTPConnection<Request>.ResponseData responseData2 = conn.waitForNextResponse();
+        
+        // Verify the responses.
+        String responseDataString1 = new String(responseData1.data, "UTF-8");
+        assertEquals(responseDataString1, "response 1");
+        String responseDataString2 = new String(responseData2.data, "UTF-8");
+        assertEquals(responseDataString2, "response 2");
+
+        serverOutput.close();
+    }
 };
