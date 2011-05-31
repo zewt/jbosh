@@ -228,7 +228,16 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
      * requests.
      */
     @Test(timeout=5000)
-    public void retryRecoverableErrors() throws Exception {
+    public void retryRecoverableErrors_HTTP10() throws Exception {
+        retryRecoverableErrors(true);
+    }
+
+    @Test(timeout=5000)
+    public void retryRecoverableErrors_HTTP11() throws Exception {
+        retryRecoverableErrors(false);
+    }
+
+    public void retryRecoverableErrors(boolean http10) throws Exception {
         logTestStart();
         String testURI = "http://kenai.com/jbosh/junit";
         BodyQName ref = BodyQName.createWithPrefix(testURI, "ref", "test");
@@ -239,6 +248,8 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
         AbstractBody scr = this.getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.REQUESTS, "3")
                 .build();
+        if(http10)
+            conn.forceHTTP1();
         conn.sendResponse(scr);
         session.drain();
 
@@ -253,13 +264,17 @@ public class XEP0124Section17Test extends AbstractBOSHTest {
                 .setAttribute(ref, "Req2")
                 .build());
         StubConnection conn2 = cm.awaitConnection();
-
-        // Send an arbitrary response for the second connection
         String expected2 = conn2.getRequest().getBody().toXML();
-        conn2.sendResponse(ComposableBody.builder()
-                .setNamespaceDefinition("test", testURI)
-                .setAttribute(ref, "Resp2")
-                .build());
+
+        // When testing HTTP/1.0, send a response to the second request before
+        // returning an error on the first.  With pipelining enabled on HTTP/1.1,
+        // this can't happen.
+        if(http10) {
+            conn2.sendResponse(ComposableBody.builder()
+                    .setNamespaceDefinition("test", testURI)
+                    .setAttribute(ref, "Resp2")
+                    .build());
+        }
 
         // When we send the response below, the requests will be resent.  Verify
         // from a listener that the retransmissions are sent in the correct order.
