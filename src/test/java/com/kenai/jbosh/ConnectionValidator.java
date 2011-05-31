@@ -416,11 +416,13 @@ public final class ConnectionValidator implements StubCMListener {
             return;
         }
 
-        ComposableBody prevResp =
-                toComposableBody(previous.getResponse().getBody());
-        if (!prevResp.getPayloadXML().isEmpty()) {
-            // Previous response was not empty
-            return;
+        StubResponse prevResp = previous.getResponse();
+        if(prevResp != null) {
+            ComposableBody prevRespBody = toComposableBody(prevResp.getBody());
+            if (!prevRespBody.getPayloadXML().isEmpty()) {
+                // Previous response was not empty
+                return;
+            }
         }
 
         CMSessionParams params = session.getCMSessionParams();
