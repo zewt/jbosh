@@ -41,6 +41,7 @@ public class StubConnection {
             new AtomicReference<StubResponse>();
     private boolean closeConnection = false;
     private StubCM cm;
+    private String protocol = "HTTP/1.1";
 
     ///////////////////////////////////////////////////////////////////////////
     // Constructor:
@@ -85,12 +86,21 @@ public class StubConnection {
         sendResponseWithStatusAndHeaders(respBody, httpStatus, null);
     }
 
+    /**
+     * Send the response as HTTP/1.0 instead of HTTP/1.1.  This will disable keepalives
+     * and pipelining.
+     */
+    public void forceHTTP1() {
+        protocol = "HTTP/1.0";
+    }
+
     public void sendResponseWithStatusAndHeaders(
             final AbstractBody respBody,
             final int httpStatus,
             final Map<String,String> headers)
             throws IOException {
         HttpResponseHeader respHead = new HttpResponseHeader(httpStatus);
+        respHead.setProtocol(protocol);
         if (headers != null) {
             for (Map.Entry<String,String> entry : headers.entrySet()) {
                 respHead.setHeader(entry.getKey(), entry.getValue());
