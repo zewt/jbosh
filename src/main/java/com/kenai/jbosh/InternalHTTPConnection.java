@@ -650,8 +650,15 @@ class NonBlockingSocket {
                 inetAddress = InetAddress.getByName(uri.getHost());
             }
 
-            // Open the connection.
-            socket.connect(new InetSocketAddress(inetAddress, uri.getPort()));
+            // Open the connection.  Work around an API bug: InetSocketAddress always needlessly
+            // tries to reverse resolve the IP address if we give it an InetAddress, but constructing
+            // an InetSocketAddress should be nonblocking.  Give it the address as a string to
+            // convince it not to do this.
+            String addressString = inetAddress.getHostAddress();
+            InetSocketAddress socketAddress = new InetSocketAddress(addressString, uri.getPort());
+
+            // Connect the socket.  This is blocking, and can be cancelled by socket.close.
+            socket.connect(socketAddress);
 
             // If this is an HTTPS connection, attach TLS.
             if(uri.getScheme().equalsIgnoreCase("https")) {
