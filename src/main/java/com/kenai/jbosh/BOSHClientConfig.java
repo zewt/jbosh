@@ -82,6 +82,11 @@ public final class BOSHClientConfig {
     private final SocketFactory socketFactory;
 
     /**
+     * Supplied SocketConnector for connecting sockets.
+     */
+    private final BOSHClientSocketConnectorFactory socketConnectorFactory;
+
+    /**
      * Supplied SocketFactory for creating SSL sockets.
      */
     private final SSLConnector sslConnector;
@@ -116,6 +121,7 @@ public final class BOSHClientConfig {
         private int bProxyPort;
         private SSLContext bSSLContext;
         private SocketFactory bSocketFactory;
+        private BOSHClientSocketConnectorFactory bSocketConnectorFactory;
         private SSLConnector bSSLConnector;
         private Boolean bCompression;
 
@@ -173,6 +179,7 @@ public final class BOSHClientConfig {
             result.bInetAddress = cfg.getInetAddress();
             result.bSSLContext = cfg.getSSLContext();
             result.bSocketFactory = cfg.getSocketFactory();
+            result.bSocketConnectorFactory = cfg.getSocketConnectorFactory();
             result.bSSLConnector = cfg.getSSLConnector();
             result.bCompression = cfg.isCompressionEnabled();
             return result;
@@ -319,6 +326,20 @@ public final class BOSHClientConfig {
         }
 
         /**
+         * Set the {@link BOSHClientSocketConnectorFactory}.
+         * @param factory socket factory
+         * @return builder instance
+         */
+        public Builder setSocketConnectorFactory(final BOSHClientSocketConnectorFactory factory) {
+            if (factory == null) {
+                throw(new IllegalArgumentException("SocketFactory cannot be null"));
+            }
+
+            bSocketConnectorFactory = factory;
+            return this;
+        }
+        
+        /**
          * Set the {@link SSLConnector} for establishing HTTPS connections.
          * @param connector SSLConnector to use
          * @return builder instance
@@ -389,6 +410,7 @@ public final class BOSHClientConfig {
                     bInetAddress,
                     bSSLContext,
                     bSocketFactory,
+                    bSocketConnectorFactory,
                     bSSLConnector,
                     compression);
         }
@@ -424,6 +446,7 @@ public final class BOSHClientConfig {
             final InetAddress cInetAddress,
             final SSLContext cSSLContext,
             final SocketFactory cSocketFactory,
+            final BOSHClientSocketConnectorFactory cSocketConnectorFactory,
             final SSLConnector cSSLConnector,
             final boolean cCompression) {
         uri = cURI;
@@ -436,6 +459,7 @@ public final class BOSHClientConfig {
         inetAddress = cInetAddress;
         sslContext = cSSLContext;
         socketFactory = cSocketFactory;
+        socketConnectorFactory = cSocketConnectorFactory;
         sslConnector = cSSLConnector;
         compressionEnabled = cCompression;
     }
@@ -535,6 +559,16 @@ public final class BOSHClientConfig {
         return socketFactory;
     }
 
+    /**
+     * Get the {@link BOSHClientSocketConnectorFactory} for this session.
+     * 
+     * @return {@link BOSHClientSocketConnectorFactory} to use, or {@code null}
+     *  if none was provided.
+     */
+    public BOSHClientSocketConnectorFactory getSocketConnectorFactory() {
+        return socketConnectorFactory;
+    }
+    
     /**
      * Get the {@link SSLConnector} for establishing HTTPS connections.
      *

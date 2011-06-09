@@ -19,6 +19,8 @@ import java.util.logging.Logger;
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocket;
 
+import com.kenai.jbosh.BOSHClientSocketConnectorFactory.SocketConnector;
+
 
 /**
  * A simple HTTP implementation.
@@ -68,12 +70,16 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
     /** Prepare to connect to the scheme, host and port specified in uri.  The
      * other fields of uri are unused. */
-    InternalHTTPConnection(URI uri, InetAddress addr, SocketFactory factory, SSLConnector sslConnector) {
+    InternalHTTPConnection(URI uri, InetAddress addr, SocketFactory factory,
+            BOSHClientSocketConnectorFactory socketConnectorFactory,
+            SSLConnector sslConnector) {
         if(factory == null)
             factory = SocketFactory.getDefault();
         if(sslConnector == null)
             sslConnector = SSLConnector.getDefault();
-        socket = new NonBlockingSocket(uri, addr, factory, sslConnector);
+        if(socketConnectorFactory == null)
+            socketConnectorFactory = BOSHClientSocketConnectorFactory.getDefault();
+        socket = new NonBlockingSocket(uri, addr, factory, socketConnectorFactory, sslConnector);
     }
 
     Thread thread = null;
@@ -497,6 +503,7 @@ class NonBlockingSocket {
     private Thread thread;
     private IOException error;
     private Socket socket;
+    private SocketConnector socketConnector;
     private SSLConnector sslConnector;
     private InputStream inputStream;
     private LinkedBlockingQueue<byte[]> queuedPackets = new LinkedBlockingQueue<byte[]>();
@@ -505,13 +512,15 @@ class NonBlockingSocket {
     /** Open a socket using the given factory to the specified URI.  Returns
      * immediately.  If a connection error occurs, it will be reported on the first
      * call to read(). */
-    public NonBlockingSocket(URI uri, InetAddress inetAddress, SocketFactory factory, SSLConnector sslConnector) {
+    public NonBlockingSocket(URI uri, InetAddress inetAddress, SocketFactory factory,
+            BOSHClientSocketConnectorFactory socketConnectorFactory, SSLConnector sslConnector) {
         this.uri = uri;
         this.inetAddress = inetAddress;
         this.sslConnector = sslConnector;
 
         try {
             socket = factory.createSocket();
+            socketConnector = socketConnectorFactory.createConnector(socket);
         } catch(IOException e) {
             // In the unlikely case that creating the socket itself fails, stash
             // the error and it'll be returned from the first close().
@@ -643,22 +652,15 @@ class NonBlockingSocket {
         OutputStream outputStream = null;
         
         try {
+            String addressString;
             if(inetAddress == null) {
-                // Look up the host.  Note that this isn't cancellable; if the caller wants
-                // all connections to be immediately cancellable, inetAddress must be specified
-                // in advance.
-                inetAddress = InetAddress.getByName(uri.getHost());
+                addressString = uri.getHost();
+            } else {
+                addressString = inetAddress.getHostAddress();
             }
 
-            // Open the connection.  Work around an API bug: InetSocketAddress always needlessly
-            // tries to reverse resolve the IP address if we give it an InetAddress, but constructing
-            // an InetSocketAddress should be nonblocking.  Give it the address as a string to
-            // convince it not to do this.
-            String addressString = inetAddress.getHostAddress();
-            InetSocketAddress socketAddress = new InetSocketAddress(addressString, uri.getPort());
-
-            // Connect the socket.  This is blocking, and can be cancelled by socket.close.
-            socket.connect(socketAddress);
+            // Connect the socket.  This is blocking, and can be cancelled by calling socketConnector.cancel().
+            socketConnector.connectSocket(addressString, uri.getPort());
 
             // If this is an HTTPS connection, attach TLS.
             if(uri.getScheme().equalsIgnoreCase("https")) {
