@@ -301,7 +301,7 @@ public class InternalHTTPConnectionTest {
      */
     @Test(timeout=5000, expected=TestIOException.class)
     public void testSocketCreationErrorHandling() throws IOException {
-        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, null, errorFactory, null);
+        InternalHTTPConnection<Request> conn = new InternalHTTPConnection<Request>(serverURI, errorFactory, null, null);
         byte[] data = "request data".getBytes("UTF-8");
         conn.sendRequest(data, new Request());
 

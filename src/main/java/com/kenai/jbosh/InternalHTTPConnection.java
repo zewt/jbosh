@@ -3,8 +3,6 @@ package com.kenai.jbosh;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.channels.AsynchronousCloseException;
@@ -70,7 +68,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
 
     /** Prepare to connect to the scheme, host and port specified in uri.  The
      * other fields of uri are unused. */
-    InternalHTTPConnection(URI uri, InetAddress addr, SocketFactory factory,
+    InternalHTTPConnection(URI uri, SocketFactory factory,
             BOSHClientSocketConnectorFactory socketConnectorFactory,
             SSLConnector sslConnector) {
         if(factory == null)
@@ -79,7 +77,7 @@ class InternalHTTPConnection<T extends InternalHTTPRequestBase> {
             sslConnector = SSLConnector.getDefault();
         if(socketConnectorFactory == null)
             socketConnectorFactory = BOSHClientSocketConnectorFactory.getDefault();
-        socket = new NonBlockingSocket(uri, addr, factory, socketConnectorFactory, sslConnector);
+        socket = new NonBlockingSocket(uri, factory, socketConnectorFactory, sslConnector);
     }
 
     Thread thread = null;
@@ -499,7 +497,6 @@ class NonBlockingSocket {
         Logger.getLogger(NonBlockingSocket.class.getName());
 
     private URI uri;
-    private InetAddress inetAddress;
     private Thread thread;
     private IOException error;
     private Socket socket;
@@ -512,10 +509,9 @@ class NonBlockingSocket {
     /** Open a socket using the given factory to the specified URI.  Returns
      * immediately.  If a connection error occurs, it will be reported on the first
      * call to read(). */
-    public NonBlockingSocket(URI uri, InetAddress inetAddress, SocketFactory factory,
+    public NonBlockingSocket(URI uri, SocketFactory factory,
             BOSHClientSocketConnectorFactory socketConnectorFactory, SSLConnector sslConnector) {
         this.uri = uri;
-        this.inetAddress = inetAddress;
         this.sslConnector = sslConnector;
 
         try {
@@ -652,15 +648,8 @@ class NonBlockingSocket {
         OutputStream outputStream = null;
         
         try {
-            String addressString;
-            if(inetAddress == null) {
-                addressString = uri.getHost();
-            } else {
-                addressString = inetAddress.getHostAddress();
-            }
-
             // Connect the socket.  This is blocking, and can be cancelled by calling socketConnector.cancel().
-            socketConnector.connectSocket(addressString, uri.getPort());
+            socketConnector.connectSocket(uri.getHost(), uri.getPort());
 
             // If this is an HTTPS connection, attach TLS.
             if(uri.getScheme().equalsIgnoreCase("https")) {
