@@ -224,8 +224,13 @@ public final class BOSHClient {
     /**
      * ScheduledExcecutor to use for deferred tasks.
      */
-    private final ScheduledExecutorService schedExec =
-            Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService schedExec;
+
+    /**
+     * If true, {@link #schedExec} was created by us, and needs to be shut down
+     * by us.
+     */
+    private final boolean schedExecOwned;
 
     /************************************************************
      * The following vars must be accessed via the lock instance.
@@ -310,6 +315,15 @@ public final class BOSHClient {
      */
     private BOSHClient(final BOSHClientConfig sessCfg) {
         cfg = sessCfg;
+        ScheduledExecutorService executorService = sessCfg.getExecutorService();
+        if(executorService == null) {
+            schedExec = Executors.newSingleThreadScheduledExecutor();
+            schedExecOwned = true;
+        } else {
+            schedExec = executorService;
+            schedExecOwned = false;
+        }
+
         init();
     }
 
@@ -882,7 +896,8 @@ public final class BOSHClient {
             Helpers.joinThreadUninterruptible(thread);
         }
         
-        schedExec.shutdownNow();
+        if(schedExecOwned)
+            schedExec.shutdownNow();
     }
 
     /**

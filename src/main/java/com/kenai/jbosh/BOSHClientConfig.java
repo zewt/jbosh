@@ -17,6 +17,9 @@
 package com.kenai.jbosh;
 
 import java.net.URI;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLContext;
 
@@ -90,6 +93,11 @@ public final class BOSHClientConfig {
      */
     private boolean compressionEnabled;
 
+    /**
+     * Supplied ScheduledExecutorService to use to schedule tasks.
+     */
+    private ScheduledExecutorService executorService;
+    
     ///////////////////////////////////////////////////////////////////////////
     // Classes:
 
@@ -329,6 +337,17 @@ public final class BOSHClientConfig {
         }
 
         /**
+         * Provide a custom {@link ScheduledExecutorService} to schedule threaded tasks.
+         * This must have the semantics of an executor created with
+         * {@link Executors#newSingleThreadScheduledExecutor}.
+         */
+        public Builder setExecutorService(final ScheduledExecutorService executorService) {
+            config.executorService = executorService;
+            return this;
+        }
+        
+        
+        /**
          * Build the immutable object instance with the current configuration.
          *
          * @return BOSHClientConfig instance
@@ -360,6 +379,7 @@ public final class BOSHClientConfig {
         socketConnectorFactory = copy.socketConnectorFactory;
         sslConnector = copy.sslConnector;
         compressionEnabled = copy.compressionEnabled;
+        executorService = copy.executorService;
     }
 
     /**
@@ -478,4 +498,11 @@ public final class BOSHClientConfig {
         return compressionEnabled;
     }
 
+    /**
+     * @return the provided {@link ScheduledExecutorService}, or {@code null} if
+     * none was provided. 
+     */
+    public ScheduledExecutorService getExecutorService() {
+        return executorService;
+    }
 }
