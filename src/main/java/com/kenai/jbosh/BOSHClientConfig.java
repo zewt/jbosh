@@ -33,62 +33,62 @@ public final class BOSHClientConfig {
     /**
      * Connection manager URI.
      */
-    private final URI uri;
+    private URI uri;
 
     /**
      * Target domain.
      */
-    private final String to;
+    private String to;
 
     /**
      * Client ID of this station.
      */
-    private final String from;
+    private String from;
 
     /**
      * Default XML language.
      */
-    private final String lang;
+    private String lang = "en";
 
     /**
      * Routing information for messages sent to CM.
      */
-    private final String route;
+    private String route;
 
     /**
      * Proxy host.
      */
-    private final String proxyHost;
+    private String proxyHost;
 
     /**
      * Proxy port.
      */
-    private final int proxyPort;
+    private int proxyPort;
 
     /**
      * SSL context.
      */
-    private final SSLContext sslContext;
+    private SSLContext sslContext;
 
     /**
      * Supplied SocketFactory for creating sockets.
      */
-    private final SocketFactory socketFactory;
+    private SocketFactory socketFactory;
 
     /**
      * Supplied SocketConnector for connecting sockets.
      */
-    private final BOSHClientSocketConnectorFactory socketConnectorFactory;
+    private BOSHClientSocketConnectorFactory socketConnectorFactory;
 
     /**
      * Supplied SocketFactory for creating SSL sockets.
      */
-    private final SSLConnector sslConnector;
+    private SSLConnector sslConnector;
 
     /**
      * Flag indicating that compression should be attempted, if possible.
      */
-    private final boolean compressionEnabled;
+    private boolean compressionEnabled;
 
     ///////////////////////////////////////////////////////////////////////////
     // Classes:
@@ -102,21 +102,7 @@ public final class BOSHClientConfig {
      * use is desired, see the {@code create(BOSHClientConfig)} method.
      */
     public static final class Builder {
-        // Required args
-        private final URI bURI;
-        private final String bDomain;
-
-        // Optional args
-        private String bFrom;
-        private String bLang;
-        private String bRoute;
-        private String bProxyHost;
-        private int bProxyPort;
-        private SSLContext bSSLContext;
-        private SocketFactory bSocketFactory;
-        private BOSHClientSocketConnectorFactory bSocketConnectorFactory;
-        private SSLConnector bSSLConnector;
-        private Boolean bCompression;
+        private final BOSHClientConfig config;
 
         /**
          * Creates a new builder instance, used to create instances of the
@@ -126,8 +112,10 @@ public final class BOSHClientConfig {
          * @param domain target domain to communicate with
          */
         private Builder(final URI cmURI, final String domain) {
-            bURI = cmURI;
-            bDomain = domain;
+            config = new BOSHClientConfig();
+
+            config.uri = cmURI;
+            config.to = domain;
         }
 
         /**
@@ -162,19 +150,12 @@ public final class BOSHClientConfig {
          * @param cfg configuration to copy
          * @return builder instance
          */
+        private Builder(final BOSHClientConfig cfg) {
+            config = new BOSHClientConfig(cfg);
+        }
+
         public static Builder create(final BOSHClientConfig cfg) {
-            Builder result = new Builder(cfg.getURI(), cfg.getTo());
-            result.bFrom = cfg.getFrom();
-            result.bLang = cfg.getLang();
-            result.bRoute = cfg.getRoute();
-            result.bProxyHost = cfg.getProxyHost();
-            result.bProxyPort = cfg.getProxyPort();
-            result.bSSLContext = cfg.getSSLContext();
-            result.bSocketFactory = cfg.getSocketFactory();
-            result.bSocketConnectorFactory = cfg.getSocketConnectorFactory();
-            result.bSSLConnector = cfg.getSSLConnector();
-            result.bCompression = cfg.isCompressionEnabled();
-            return result;
+            return new Builder(cfg);
         }
 
         /**
@@ -189,7 +170,7 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "Client ID must not be null"));
             }
-            bFrom = id;
+            config.from = id;
             return this;
         }
         
@@ -205,7 +186,7 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "Default language ID must not be null"));
             }
-            bLang = lang;
+            config.lang = lang;
             return this;
         }
 
@@ -244,7 +225,7 @@ public final class BOSHClientConfig {
             if (port <= 0) {
                 throw(new IllegalArgumentException("Port number must be > 0"));
             }
-            bRoute = protocol + ":" + host + ":" + port;
+            config.route = protocol + ":" + host + ":" + port;
             return this;
         }
 
@@ -264,8 +245,8 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "Proxy port must be > 0"));
             }
-            bProxyHost = hostName;
-            bProxyPort = port;
+            config.proxyHost = hostName;
+            config.proxyPort = port;
             return this;
         }
 
@@ -282,10 +263,10 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException(
                         "SSL context cannot be null"));
             }
-            if (bSSLConnector != null) {
+            if (config.sslConnector != null) {
                 throw(new IllegalArgumentException("SSLConnector and SSLContext can not both be set"));
             }
-            bSSLContext = ctx;
+            config.sslContext = ctx;
             return this;
         }
 
@@ -299,7 +280,7 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException("SocketFactory cannot be null"));
             }
 
-            bSocketFactory = factory;
+            config.socketFactory = factory;
             return this;
         }
 
@@ -313,7 +294,7 @@ public final class BOSHClientConfig {
                 throw(new IllegalArgumentException("SocketFactory cannot be null"));
             }
 
-            bSocketConnectorFactory = factory;
+            config.socketConnectorFactory = factory;
             return this;
         }
         
@@ -326,11 +307,11 @@ public final class BOSHClientConfig {
             if (connector == null) {
                 throw(new IllegalArgumentException("SSLConnector cannot be null"));
             }
-            if (bSSLContext != null) {
+            if (config.sslContext != null) {
                 throw(new IllegalArgumentException("SSLConnector and SSLContext can not both be set"));
             }
 
-            bSSLConnector = connector;
+            config.sslConnector = connector;
             return this;
         }
 
@@ -343,7 +324,7 @@ public final class BOSHClientConfig {
          * @return builder instance
          */
         public Builder setCompressionEnabled(final boolean enabled) {
-            bCompression = Boolean.valueOf(enabled);
+            config.compressionEnabled = Boolean.valueOf(enabled);
             return this;
         }
 
@@ -353,43 +334,7 @@ public final class BOSHClientConfig {
          * @return BOSHClientConfig instance
          */
         public BOSHClientConfig build() {
-            // Default XML language
-            String lang;
-            if (bLang == null) {
-                lang = "en";
-            } else {
-                lang = bLang;
-            }
-
-            // Default proxy port
-            int port;
-            if (bProxyHost == null) {
-                port = 0;
-            } else {
-                port = bProxyPort;
-            }
-
-            // Default compression
-            boolean compression;
-            if (bCompression == null) {
-                compression = false;
-            } else {
-                compression = bCompression.booleanValue();
-            }
-
-            return new BOSHClientConfig(
-                    bURI,
-                    bDomain,
-                    bFrom,
-                    lang,
-                    bRoute,
-                    bProxyHost,
-                    port,
-                    bSSLContext,
-                    bSocketFactory,
-                    bSocketConnectorFactory,
-                    bSSLConnector,
-                    compression);
+            return new BOSHClientConfig(config);
         }
 
     }
@@ -397,46 +342,24 @@ public final class BOSHClientConfig {
     ///////////////////////////////////////////////////////////////////////////
     // Constructor:
 
+    private BOSHClientConfig() { }
+
     /**
-     * Prevent direct construction.
-     *
-     * @param cURI URI of the connection manager to connect to
-     * @param cDomain the target domain of the first stream
-     * @param cFrom client ID
-     * @param cLang default XML language
-     * @param cRoute target route
-     * @param cProxyHost proxy host
-     * @param cProxyPort proxy port
-     * @param cSSLContext SSL context
-     * @param cSocketFactory socket factory to use
-     * @param cSSLConnector SSLConnector to use for HTTPS connections
-     * @param cCompression compression enabled flag
+     * Create a copy of another BOSHClientConfig.
      */
-    private BOSHClientConfig(
-            final URI cURI,
-            final String cDomain,
-            final String cFrom,
-            final String cLang,
-            final String cRoute,
-            final String cProxyHost,
-            final int cProxyPort,
-            final SSLContext cSSLContext,
-            final SocketFactory cSocketFactory,
-            final BOSHClientSocketConnectorFactory cSocketConnectorFactory,
-            final SSLConnector cSSLConnector,
-            final boolean cCompression) {
-        uri = cURI;
-        to = cDomain;
-        from = cFrom;
-        lang = cLang;
-        route = cRoute;
-        proxyHost = cProxyHost;
-        proxyPort = cProxyPort;
-        sslContext = cSSLContext;
-        socketFactory = cSocketFactory;
-        socketConnectorFactory = cSocketConnectorFactory;
-        sslConnector = cSSLConnector;
-        compressionEnabled = cCompression;
+    private BOSHClientConfig(BOSHClientConfig copy) {
+        uri = copy.uri;
+        to = copy.to;
+        from = copy.from;
+        lang = copy.lang;
+        route = copy.route;
+        proxyHost = copy.proxyHost;
+        proxyPort = copy.proxyPort;
+        sslContext = copy.sslContext;
+        socketFactory = copy.socketFactory;
+        socketConnectorFactory = copy.socketConnectorFactory;
+        sslConnector = copy.sslConnector;
+        compressionEnabled = copy.compressionEnabled;
     }
 
     /**
