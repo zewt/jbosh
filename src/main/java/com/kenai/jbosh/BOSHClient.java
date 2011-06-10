@@ -1031,7 +1031,7 @@ public final class BOSHClient {
         builder.setAttribute(Attributes.XML_LANG, cfg.getLang());
         builder.setAttribute(Attributes.VER,
                 AttrVersion.getSupportedVersion().toString());
-        builder.setAttribute(Attributes.WAIT, "60");
+        builder.setAttribute(Attributes.WAIT, Integer.toString(cfg.getWaitTime()));
         builder.setAttribute(Attributes.HOLD, "3");
         builder.setAttribute(Attributes.RID, Long.toString(rid));
         applyRoute(builder);

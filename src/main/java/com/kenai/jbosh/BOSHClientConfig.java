@@ -69,6 +69,11 @@ public final class BOSHClientConfig {
     private int proxyPort;
 
     /**
+     * BOSH wait time to request.
+     */
+    private int waitTime = 60;
+    
+    /**
      * SSL context.
      */
     private SSLContext sslContext;
@@ -259,6 +264,17 @@ public final class BOSHClientConfig {
         }
 
         /**
+         * Set the hold time to request from the server, in seconds.
+         */
+        public Builder setWaitTime(final int waitTime) {
+            if(waitTime < 0)
+                throw new IllegalArgumentException("waitTime value must not be negative");
+
+            config.waitTime = waitTime;
+            return this;
+        }
+        
+        /**
          * Set the SSL context to use for this session.  This can be used
          * to configure certificate-based authentication, etc..
          *
@@ -374,6 +390,7 @@ public final class BOSHClientConfig {
         route = copy.route;
         proxyHost = copy.proxyHost;
         proxyPort = copy.proxyPort;
+        waitTime = copy.waitTime;
         sslContext = copy.sslContext;
         socketFactory = copy.socketFactory;
         socketConnectorFactory = copy.socketConnectorFactory;
@@ -445,6 +462,13 @@ public final class BOSHClientConfig {
      */
     public int getProxyPort() {
         return proxyPort;
+    }
+
+    /**
+     * @return the wait time to request, in seconds.
+     */
+    public int getWaitTime() {
+        return waitTime;
     }
 
     /**
