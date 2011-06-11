@@ -782,6 +782,28 @@ public final class BOSHClient {
             for(ComposableBody req: requestsToResend) {
                 createExchangeAndSend(req);
             }
+
+            // It's critical that we guarantee at least one packet will be received in response
+            // to reconnection, in order for a successful reconnection to be detectable.
+            // Otherwise, even if we detect that the TCP connection is open, we might only be
+            // connected to a proxy and the actual connection to the CM may not be active.
+            //
+            // The spec gives no reliable way to do this.  Sending a pause request to flush
+            // the hold buffer works, but support for pausing is optional.  Sending at least
+            // hold+1 requests will force the first request to receive a response, but that'll
+            // trigger overactivity.
+            //
+            // To work around the overactivity problem, we have to send a stanza within the
+            // packet, so the last request isn't empty.  This isn't ideal: it's XMPP-specific,
+            // and it'll trigger error responses, but it's the only reliable option available.
+            int hold = cmParams.getHold().getValue();
+            while(exchanges.size() < hold + 1) {
+                ComposableBody req = ComposableBody.builder()
+                    .setPayloadXML("<message xmlns='jabber:client' />")
+                    .build();
+                sendInternal(req, false);
+                requestsToResend.add(req);
+            }
         } finally {
             lock.unlock();
         }
