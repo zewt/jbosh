@@ -724,8 +724,12 @@ public final class BOSHClient {
 
     /**
      * After an unexpected disconnection, attempt to reestablish the connnection.
+     *
+     * @return true if a connection attempt is being attempted, false if the connection
+     * is already connected and no reconnection attempt is necessary.
+     * @throws BOSHException if the connection is unrecoverably disconnected.
      */
-    public void attemptReconnection() throws BOSHException {
+    public boolean attemptReconnection() throws BOSHException {
         assertUnlocked();
 
         lock.lock();
@@ -739,7 +743,7 @@ public final class BOSHClient {
 
             // If the connection isn't actually lost, stop.
             if(!connectionRecoverablyLost)
-                return;
+                return false;
 
             // Once we attempt to resend the request, we're no longer a lost connection.
             // If that request fails, we'll reenter connectionRecoverablyLost.
@@ -810,6 +814,8 @@ public final class BOSHClient {
 
         for(ComposableBody req: requestsToResend)
             fireRequestSent(req);
+        
+        return true;
     }
 
     private void connectionLost(final Throwable cause) {
