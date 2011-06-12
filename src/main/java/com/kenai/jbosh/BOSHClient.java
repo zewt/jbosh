@@ -531,6 +531,17 @@ public final class BOSHClient {
             }
 
             sessionPaused = isPause(body);
+            if (sessionPaused) {            
+                // If this is a pause request, clear any empty packet timer that's already
+                // been sent, and schedule an empty request based on the duration of the
+                // pause.
+                long delay = processPauseRequest(body);
+
+                if(delay != -1) {
+                    clearEmptyRequest();
+                    scheduleEmptyRequests(delay);
+                }
+            }
 
             long rid = requestIDSeq.getNextRID();
             ComposableBody request = body;
@@ -1326,18 +1337,15 @@ public final class BOSHClient {
                     // After clearing the received packet, reset the timeout.
                     resetTimeout();
 
-                    // If this is the response to a pause request, clear any empty packet timer
-                    // that's already been sent, so we reschedule based on the duration of the
-                    // pause.  If sessionPaused is false, then we sent a pause request but it
-                    // was canceleld by sending another request after it.
-                    long delay = processPauseRequest(req);
-                    if(delay != -1 && sessionPaused)
-                        clearEmptyRequest();
-
-                    if(delay == -1)
-                        delay = getDefaultEmptyRequestDelay();
-                    if(delay != -1)
-                        scheduleEmptyRequests(delay);
+                    if(!sessionPaused) {
+                        // If this is the response to a pause request, clear any empty packet timer
+                        // that's already been sent, so we reschedule based on the duration of the
+                        // pause.  If sessionPauseRid is set, then we sent a pause request but it
+                        // was cancelled by sending another request after it.
+                        long delay = getDefaultEmptyRequestDelay();
+                        if(delay != -1)
+                            scheduleEmptyRequests(delay);
+                    }
                 } finally {
                     lock.unlock();
                 }
