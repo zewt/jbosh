@@ -55,12 +55,12 @@ public class BOSHClientTest extends AbstractBOSHTest {
         });
 
         // Session creation
-        session.send(ComposableBody.builder().build());
-        StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+        session.send(ComposableBody.builder()
                 .setAttribute(Attributes.WAIT, "1")
-                .build();
+                .build());
+        StubConnection conn = cm.awaitConnection();
+        
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
         session.drain();
         assertEquals(1, events.size());
@@ -72,7 +72,6 @@ public class BOSHClientTest extends AbstractBOSHTest {
         session.disconnect();
         conn = cm.awaitConnection();
         scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
                 .setAttribute(Attributes.TYPE, "terminate")
                 .build();
         conn.sendResponse(scr);
