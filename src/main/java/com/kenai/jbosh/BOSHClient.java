@@ -826,7 +826,7 @@ public final class BOSHClient {
             // To work around the overactivity problem, we have to send a stanza within the
             // packet, so the last request isn't empty.  This isn't ideal: it's XMPP-specific,
             // and it'll trigger error responses, but it's the only reliable option available.
-            int hold = cmParams.getHold().getValue();
+            int hold = cmParams != null? cmParams.getHold().getValue():0;
             while(exchanges.size() < hold + 1) {
                 ComposableBody req = ComposableBody.builder()
                     .setPayloadXML("<message xmlns='jabber:client' />")
