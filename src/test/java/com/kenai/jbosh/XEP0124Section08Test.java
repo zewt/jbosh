@@ -16,7 +16,12 @@
 
 package com.kenai.jbosh;
 
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 /**
  * BOSH XEP-0124 specification section 8 tests: Sending and Receiving XML
@@ -54,8 +59,40 @@ public class XEP0124Section08Test extends AbstractBOSHTest {
      * time than the number specified in the 'hold' attribute of the session
      * creation request.
      */
-    // BOSH CM functionality not supported.
+    // BOSH CM functionality not supported.  Test our dependancy on this.
 
+    @Test(timeout=5000)
+    public void requestTimeout() throws Exception {
+        logTestStart();
+
+        final LinkedBlockingQueue<BOSHClientConnEvent> events = new LinkedBlockingQueue<BOSHClientConnEvent>();
+        
+        // Session creation
+        session.send(ComposableBody.builder().build());
+        StubConnection conn = cm.awaitConnection();
+        
+        // Empty messages must be enabled, or there won't be any messages to time out.
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
+                .setAttribute(Attributes.WAIT, "1")
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
+                .build();
+        conn.sendResponse(scr);
+        session.drain();
+
+        // If a response is not received within about WAIT seconds, a recoverable error will
+        // be received.
+        BOSHClientConnListener listener = new BOSHClientConnListener()
+        {
+            public void connectionEvent(BOSHClientConnEvent connEvent) { events.offer(connEvent); }
+        };
+        session.addBOSHClientConnListener(listener);
+
+        BOSHClientConnEvent event = events.poll(2000, TimeUnit.MILLISECONDS);
+        assertNotNull("Disconnection event not received", event);
+        assertTrue("Event must be an error", event.isError());
+        assertTrue("Event must be a recoverable error", session.isRecoverableConnectionLoss());
+    }
+    
     /*
      * The connection manager MUST respond to requests in the order specified
      * by their 'rid' attributes.

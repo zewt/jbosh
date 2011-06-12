@@ -255,6 +255,11 @@ public final class BOSHClient {
     private ScheduledFuture emptyRequestFuture;
 
     /**
+     * Future for timing out the connection.
+     */
+    private ScheduledFuture timeoutFuture;
+
+    /**
      * Connection Manager session parameters.  Only available when in a
      * connected state.
      */
@@ -556,6 +561,11 @@ public final class BOSHClient {
         HTTPExchange exch = new HTTPExchange(request, response);
         exchanges.add(exch);
         notEmpty.signalAll();
+
+        // If no timeout is scheduled, begin one.
+        if(timeoutFuture == null)
+            resetTimeout();
+
         return exch;
     }
 
@@ -847,6 +857,8 @@ public final class BOSHClient {
             if(!isWorking())
                 return;
 
+            clearTimeout();
+
             if(connectionRecoverablyLost)
                 return;
             connectionRecoverablyLost = true;
@@ -920,6 +932,7 @@ public final class BOSHClient {
         lock.lock();
         try {
             clearEmptyRequest();
+            clearTimeout();
             exchanges = null;
             cmParams = null;
             connectionRecoverablyLost = false;
@@ -1310,6 +1323,9 @@ public final class BOSHClient {
                     exchanges.remove(exch);
                     notFull.signalAll();
 
+                    // After clearing the received packet, reset the timeout.
+                    resetTimeout();
+
                     // If this is the response to a pause request, clear any empty packet timer
                     // that's already been sent, so we reschedule based on the duration of the
                     // pause.  If sessionPaused is false, then we sent a pause request but it
@@ -1356,7 +1372,7 @@ public final class BOSHClient {
     private long getDefaultEmptyRequestDelay() {
         assertLocked();
         
-        // If we havn't yet received the session creation request, never send empty
+        // If we havn't yet received the session creation response, never send empty
         // requests.
         if(cmParams == null)
             return -1;
@@ -1469,6 +1485,59 @@ public final class BOSHClient {
             }
 
             fireRequestSent(sentExchange.getRequest());
+        }
+    }
+
+    /**
+     * Clear the I/O timeout.
+     */
+    private void clearTimeout() {
+        assertLocked();
+
+        if(timeoutFuture != null) {
+            timeoutFuture.cancel(false);
+            timeoutFuture = null;
+        }
+    }
+    
+    /**
+     * Clear and reschedule the I/O timeout.
+     */
+    private void resetTimeout() {
+        assertLocked();
+        
+        clearTimeout();
+
+        // If there are no exchanges waiting, there's nothing to time out.
+        if(exchanges.size() == 0)
+            return;
+
+        // We should always receive a response within the wait period.
+        int timeout;
+        if(cmParams == null) {
+            // Before we receive the session creation response, assign the requested wait time
+            // as the timeout.
+            timeout = cfg.getWaitTime() * 1000;
+        } else {
+            timeout = cmParams.getWait().getValue() * 1000;
+        }
+        
+        // Increase the enforced timeout above the expected timeout, to allow for latency.
+        timeout = timeout * 3 / 2;
+
+        // If the timeout is zero, we're effectively in polling mode and the server will
+        // reply as soon as possible.  Set a default timeout.
+        if(timeout == 0)
+            timeout = 60*1000;
+
+        try {
+            Runnable runnable = new Runnable() {
+                public void run() { connectionLost(new BOSHException("Connection timed out")); }
+            };
+            
+            timeoutFuture = schedExec.schedule(runnable, timeout, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException rex) {
+            LOG.log(Level.FINEST, "Could not schedule empty request", rex);
         }
     }
 
