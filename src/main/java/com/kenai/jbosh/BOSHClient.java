@@ -723,8 +723,14 @@ public final class BOSHClient {
 
 
     /**
-     * After an unexpected disconnection, attempt to reestablish the connnection.
-     *
+     * Close all connections and reestablish the connection, resuming the same
+     * session.
+     * <p>
+     * This can be called after an error indicates that the session is recoverably
+     * lost via {@link #isRecoverableConnectionLoss}.  It may also be called at
+     * any other time, if the caller believes that the network environment has been
+     * modified and that TCP connections may need to be recreated.
+     * <p>
      * @return true if a connection attempt is being attempted, false if the connection
      * is already connected and no reconnection attempt is necessary.
      * @throws BOSHException if the connection is unrecoverably disconnected.
@@ -741,9 +747,8 @@ public final class BOSHClient {
             if(!isWorking())
                 throw new BOSHException("Disconnection is unrecoverable");
 
-            // If the connection isn't actually lost, stop.
-            if(!connectionRecoverablyLost)
-                return false;
+            // If any exchanges are in the air, stop them.  They'll be resent below.
+            closeAllExchanges();
 
             // Once we attempt to resend the request, we're no longer a lost connection.
             // If that request fails, we'll reenter connectionRecoverablyLost.
@@ -818,6 +823,21 @@ public final class BOSHClient {
         return true;
     }
 
+    /**
+     * Close all waiting exchanges, and disable any scheduled empty requests.
+     */
+    private void closeAllExchanges() {
+        assertLocked();
+
+        clearEmptyRequest();
+
+        for(HTTPExchange exch: exchanges)
+            exch.getHTTPResponse().abort();
+
+        exchanges.clear();
+        notFull.signalAll();
+    }
+
     private void connectionLost(final Throwable cause) {
         assertUnlocked();
 
@@ -832,13 +852,7 @@ public final class BOSHClient {
             connectionRecoverablyLost = true;
 
             // All exchanges in the air have failed.
-            clearEmptyRequest();
-
-            for(HTTPExchange exch: exchanges)
-                exch.getHTTPResponse().abort();
-
-            exchanges.clear();
-            notFull.signalAll();
+            closeAllExchanges();
         } finally {
             lock.unlock();
         }
