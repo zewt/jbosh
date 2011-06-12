@@ -83,6 +83,56 @@ public class BOSHClientTest extends AbstractBOSHTest {
         assertFalse(event.isError());
     }
 
+    @Test(timeout=5000)
+    public void packetSentAfterClose() throws Exception {
+        logTestStart();
+
+        // Session creation
+        session.send(ComposableBody.builder().build());
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
+        conn.sendResponse(scr);
+        session.drain();
+        
+        // Explicit session termination
+        session.close();
+      
+        try {
+            session.send(ComposableBody.builder().build());
+        } catch(BOSHException e) {
+            String msg = e.getMessage();
+            assertTrue(msg.contains("Cannot send message when session is closed"));
+            return;
+        }
+
+        fail("Expected BOSHException");
+    }
+
+    @Test(timeout=5000)
+    public void disconnectAfterClose() throws Exception {
+        logTestStart();
+
+        // Session creation
+        session.send(ComposableBody.builder().build());
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
+        conn.sendResponse(scr);
+        session.drain();
+        
+        // Explicit session termination
+        session.close();
+      
+        try {
+            session.disconnect();
+        } catch(BOSHException e) {
+            String msg = e.getMessage();
+            assertTrue(msg.contains("Cannot send message when session is closed"));
+            return;
+        }
+
+        fail("Expected BOSHException");
+    }
+    
     /**
      * Test closing BOSHClient while httpSender is waiting for a DNS response.
      */

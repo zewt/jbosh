@@ -520,7 +520,7 @@ public final class BOSHClient {
                 blockUntilSendable(body);
             }
 
-            if (!isWorking() && !isTermination(body)) {
+            if (!isWorking()) {
                 throw(new BOSHException(
                         "Cannot send message when session is closed"));
             }
