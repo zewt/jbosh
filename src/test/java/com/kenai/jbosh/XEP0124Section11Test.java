@@ -40,8 +40,7 @@ public class XEP0124Section11Test extends AbstractBOSHTest {
         // Initiate a new session, accepting 2 concurrent connections
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        final AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+        final AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.WAIT, "1")
                 .setAttribute(Attributes.REQUESTS, "2")
                 .setAttribute(Attributes.INACTIVITY, "5")
@@ -113,8 +112,7 @@ public class XEP0124Section11Test extends AbstractBOSHTest {
         // Initiate a new session, accepting 2 concurrent connections
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        final AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+        final AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.WAIT, "1")
                 .setAttribute(Attributes.REQUESTS, "2")
                 .build();
@@ -180,8 +178,7 @@ public class XEP0124Section11Test extends AbstractBOSHTest {
         // Initiate a new session
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.WAIT, "1")
                 .setAttribute(Attributes.VER, "1.8")
                 .build();
