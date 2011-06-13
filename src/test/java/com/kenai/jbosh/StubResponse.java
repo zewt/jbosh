@@ -16,7 +16,7 @@
 
 package com.kenai.jbosh;
 
-import org.xlightweb.HttpResponseHeader;
+import com.kenai.jbosh.HttpServer.HttpResponseHeader;
 
 /**
  * Response sent by the stub connection manager.  Used to examine the

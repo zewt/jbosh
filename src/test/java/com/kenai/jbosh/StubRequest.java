@@ -17,10 +17,11 @@
 package com.kenai.jbosh;
 
 import java.io.IOException;
-import java.util.Enumeration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.xlightweb.IHttpRequest;
+
+import com.kenai.jbosh.HttpServer.HttpRequest;
 
 /**
  * Request received by the stub connection manager.  Used to examine the
@@ -31,30 +32,24 @@ public class StubRequest {
     private final String method;
     private final Map<String,String> headers;
     private final AbstractBody body;
-    private final boolean secure;
     private final long requestTime = System.currentTimeMillis();
 
     ///////////////////////////////////////////////////////////////////////////
     // Constructor:
 
-    StubRequest(final IHttpRequest request) {
-        method = request.getMethod();
-        secure = request.isSecure();
+    StubRequest(final HttpRequest request) {
+        method = request.method;
 
         // Create a map of the request headers
         headers = new HashMap<String,String>();
 
-        @SuppressWarnings("unchecked")
-        Enumeration<String> headerNames = request.getHeaderNames();
-        
-        while (headerNames.hasMoreElements()) {
-            String headerName = headerNames.nextElement();
+        for(String headerName: request.getHeaderNames()) {
             headers.put(headerName, request.getHeader(headerName));
         }
         
         // Read in the message body
         try {
-            byte[] data = request.getBlockingBody().readBytes();
+            byte[] data = request.body;
             String encoding = request.getHeader("Content-Encoding");
             if (ZLIBCodec.getID().equalsIgnoreCase(encoding)) {
                 data = ZLIBCodec.decode(data);
@@ -83,10 +78,6 @@ public class StubRequest {
 
     public Map<String,String> getHeaders() {
         return headers;
-    }
-
-    public boolean isSecure() {
-        return secure;
     }
 
     public long getRequestTime() {

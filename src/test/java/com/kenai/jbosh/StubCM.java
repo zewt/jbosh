@@ -28,10 +28,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.xlightweb.BadMessageException;
-import org.xlightweb.IHttpExchange;
-import org.xlightweb.IHttpRequestHandler;
-import org.xlightweb.server.HttpServer;
+
+import com.kenai.jbosh.HttpServer.HttpExchange;
+import com.kenai.jbosh.HttpServer.IHttpRequestHandler;
 
 /**
  * Connection Manager stub used to act as a target server for functional
@@ -133,8 +132,7 @@ public class StubCM {
     }
 
     private class ReqHandler implements IHttpRequestHandler {
-        public void onRequest(IHttpExchange exchange)
-                throws IOException, BadMessageException {
+        public void onRequest(HttpExchange exchange) {
             try {
                 StubConnection conn = new StubConnection(StubCM.this, exchange);
                 fireReceived(conn);
@@ -157,8 +155,7 @@ public class StubCM {
     // Constructor:
 
     public StubCM() throws Exception {
-        server = new HttpServer(probeForPort(), new ReqHandler());
-        server.setAutoUncompress(false);
+        server = new HttpServer(new ReqHandler());
         server.start();
         port = server.getLocalPort();
     }
@@ -222,21 +219,6 @@ public class StubCM {
 
     ///////////////////////////////////////////////////////////////////////////
     // Private methods:
-
-    private static int probeForPort() {
-        int port = 17151;
-        do {
-            try {
-                ServerSocket sock = new ServerSocket(port);
-                sock.setReuseAddress(true);
-                sock.close();
-                return port;
-            } catch (IOException iox) {
-                // Ignore
-            }
-            port++;
-        } while(true);
-    }
 
     private void fireReceived(final StubConnection conn) {
         for (StubCMListener listener : listeners) {

@@ -21,9 +21,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.xlightweb.HttpResponse;
-import org.xlightweb.HttpResponseHeader;
-import org.xlightweb.IHttpExchange;
+
+import com.kenai.jbosh.HttpServer.HttpExchange;
+import com.kenai.jbosh.HttpServer.HttpResponse;
+import com.kenai.jbosh.HttpServer.HttpResponseHeader;
 
 /**
  * Request/response pair as exposed from the stub connection manager
@@ -33,7 +34,7 @@ public class StubConnection {
 
     private static final Logger LOG =
             Logger.getLogger(StubConnection.class.getName());
-    private final IHttpExchange exchange;
+    private final HttpExchange exchange;
     private final AtomicReference<HttpResponse> httpResp =
             new AtomicReference<HttpResponse>();
     private final StubRequest req;
@@ -48,7 +49,7 @@ public class StubConnection {
 
     StubConnection(
             final StubCM cm,
-            final IHttpExchange exch) {
+            final HttpExchange exch) {
         this.cm = cm;
         req = new StubRequest(exch.getRequest());
         exchange = exch;
