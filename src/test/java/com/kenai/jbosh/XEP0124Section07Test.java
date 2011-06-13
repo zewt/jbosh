@@ -83,10 +83,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
         // Attempt to send a body containing processing instruction
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
 
         // Check the request to make sure the route was specified
@@ -118,10 +115,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
         // Attempt to send a body containing processing instruction
         session.send(ComposableBody.builder().build());
         StubConnection conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
 
         // Check the request to make sure the route was specified
@@ -255,9 +249,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
         // Session initialization
         session.send(ComposableBody.builder().build());
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.ACCEPT, "gzip")
                 .build();
         conn.sendResponse(scr);
@@ -297,9 +289,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
         // Session initialization
         session.send(ComposableBody.builder().build());
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody())
                 .setAttribute(Attributes.ACCEPT, "deflate")
                 .build();
         conn.sendResponse(scr);
@@ -339,10 +329,7 @@ public class XEP0124Section07Test extends AbstractBOSHTest {
         // Session initialization
         session.send(ComposableBody.builder().build());
         conn = cm.awaitConnection();
-        AbstractBody scr = ComposableBody.builder()
-                .setAttribute(Attributes.SID, "123XYZ")
-                .setAttribute(Attributes.WAIT, "1")
-                .build();
+        AbstractBody scr = getSessionCreationResponse(conn.getRequest().getBody()).build();
         conn.sendResponse(scr);
 
         // Wait until the connection is active and configured.
