@@ -150,6 +150,11 @@ public class TestReconnection extends AbstractBOSHTest {
     /**
      * Verify that calling send() during a recoverable disconnection blocks until
      * the connection is reconnected.
+     * <p>
+     * This is testing implementation-specific behavior: attemptReconnection sends
+     * an additional request.  On reconnection, the first unanswered request will
+     * be resent, along with a second request to reach HOLD+1 requests.  This reaches
+     * REQUESTS, so the final send() must block until at least one response is received.
      */
     @Test(timeout=5000)
     public void testReconnectionBlockingUntilReconnect() throws Exception {
@@ -172,7 +177,10 @@ public class TestReconnection extends AbstractBOSHTest {
         // Send a packet to the CM, and receive it at the CM.
         session.send(ComposableBody.builder().build());
         StubConnection conn1 = cm.awaitConnection();
-        AbstractBody scr = getSessionCreationResponse(conn1.getRequest().getBody()).build();
+        AbstractBody scr = getSessionCreationResponse(conn1.getRequest().getBody())
+            .setAttribute(Attributes.HOLD, "1")
+            .setAttribute(Attributes.REQUESTS, "2")
+            .build();
         conn1.sendResponse(scr);
         session.drain();
 
