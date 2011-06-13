@@ -141,9 +141,84 @@ public class XEP0124Section10Test extends AbstractBOSHTest {
         request.set(null);
         boolean result = session.pause();
         assertTrue(result);
+        
+        // Drain any empty requests, followed by the pause request.  The final
+        // request the CM receives is the pause request.
+        while(true) {
+            conn = cm.awaitConnection();
+            conn.sendResponse(ComposableBody.builder().build());
+            if(conn.getRequest().getBody().getAttribute(Attributes.PAUSE) != null)
+                break;
+        }
+        req = request.getAndSet(null);
+        assertEquals(scr.getAttribute(Attributes.MAXPAUSE),
+                req.getAttribute(Attributes.PAUSE));
+
+        try {
+            // Give the client a chance to send an empty request; this should not
+            // happen.
+            Thread.sleep(1200);
+            assertNull(request.get());
+            Thread.sleep(1000);
+        } catch (InterruptedException intx) {
+            fail("Interrupted while waiting");
+        }
+
+        // After the second pause and two seconds have elapsed, the empty request
+        // to wake the session from pause should have been sent.
+        req = request.get();
+        assertNotNull(req);
+    }
+
+    /**
+     * When we send a pause request while a request is already being held, the
+     * held request will receive a response.  Verify that the receipt of that
+     * flushed response doesn't break us out of pause.
+     */
+    @Test(timeout=5000)
+    public void pauseWithEmptyRequestsQueued() throws Exception {
+        logTestStart();
+        testedBy(RequestValidator.class, "validateSubsequentPause");
+
+        final AtomicReference<AbstractBody> request =
+                new AtomicReference<AbstractBody>();
+        session.addBOSHClientRequestListener(new BOSHClientRequestListener() {
+            public void requestSent(final BOSHMessageEvent event) {
+                request.set(event.getBody());
+            }
+        });
+
+        // Initiate a session with a maxpause and empty requests enabled.
+        session.send(ComposableBody.builder().build());
+        StubConnection conn = cm.awaitConnection();
+        AbstractBody req = conn.getRequest().getBody();
+        AbstractBody scr = getSessionCreationResponse(req)
+                .setAttribute(Attributes.HOLD, "1")
+                .setAttribute(Attributes.MAXPAUSE, "2")
+                .setAttribute(Attributes.DISABLE_EMPTY_MESSAGES, null)
+                .build();
+        conn.sendResponse(scr);
+        session.drain();
+
+        // Wait for an empty request to be queued.
+        Thread.sleep(1200);
+        assertNotNull(request.get());
+        request.set(null);
+        
+        // Send the pause request
+        request.set(null);
+        boolean result = session.pause();
+        assertTrue(result);
+        
+        // Drain the empty request.
         conn = cm.awaitConnection();
         conn.sendResponse(ComposableBody.builder().build());
-        session.drain();
+
+        // Drain the pause request.
+        conn = cm.awaitConnection();
+        conn.sendResponse(ComposableBody.builder().build());
+        assertNotNull(conn.getRequest().getBody().getAttribute(Attributes.PAUSE));
+
         req = request.getAndSet(null);
         assertEquals(scr.getAttribute(Attributes.MAXPAUSE),
                 req.getAttribute(Attributes.PAUSE));
