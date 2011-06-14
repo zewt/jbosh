@@ -518,8 +518,6 @@ public final class BOSHClient {
                 int exchangesNeeded = wantedExchanges - exchanges.size();
                 if (exchangesNeeded <= 0)
                     return null;
-
-                LOG.info("Sending empty request");
             }
             else {
                 blockUntilSendable(body);
